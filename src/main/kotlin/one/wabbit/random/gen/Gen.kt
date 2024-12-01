@@ -1,10 +1,9 @@
 package one.wabbit.random.gen
 
 import one.wabbit.data.ConsList
-import one.wabbit.data.LazyConsList
+import one.wabbit.data.LazyList
 import one.wabbit.data.Need
 import one.wabbit.data.consListOf
-import java.util.*
 import kotlin.math.*
 
 //sealed interface Gen<R> {//
@@ -146,30 +145,39 @@ sealed interface Gen<out A> {
     companion object {
         val unit: Gen<Unit> = Done(Unit)
 
-        fun <A> pure(a: A): Gen<A> = Done(a)
+        fun <A> const(a: A): Gen<A> = Done(a)
 
         fun <A> apply(a: () -> A): Gen<A> =
-            FlatMap(Done(Unit)) { Done(a()) }
+            FlatMap(Done(Unit)) { _ -> Done(a()) }
 
         fun <A> delay(a: () -> Gen<A>): Gen<A> =
             Delay(Need.apply { a() })
 
+        fun <A> recursive(f: (Gen<A>) -> Gen<A>): Gen<A> {
+            class Recursive {
+                lateinit var gen: Gen<A>
+            }
+            val r = Recursive()
+            r.gen = delay { f(r.gen) }
+            return r.gen
+        }
+
         fun <R> sequence(list: List<Gen<R>>): Gen<List<R>> {
-            val l: Gen<ConsList<R>> = list.foldRight(pure(consListOf())) { gen, acc ->
+            val l: Gen<ConsList<R>> = list.foldRight(const(consListOf())) { gen, acc ->
                 gen.flatMap { h -> acc.map { t -> t.cons(h) } }
             }
             return l.map { it.toList() }
         }
-        fun <R> sequence(list: LazyConsList<Gen<R>>): Gen<LazyConsList<R>> {
+        fun <R> sequence(list: LazyList<Gen<R>>): Gen<LazyList<R>> {
             return Delay(list.thunk.map {
                 when (it) {
-                    is LazyConsList.Nil ->
-                        pure(LazyConsList.Nil)
-                    is LazyConsList.Cons ->
+                    is LazyList.Nil ->
+                        const(LazyList.Nil)
+                    is LazyList.Cons ->
                         // it.head : Gen<R>
                         // it.tail : LazyConsList<Gen<R>>
                         it.head.flatMap { h ->
-                            sequence(it.tail).map { it.cons(h) }
+                            sequence(it.tail).map { it.prepend(h) }
                         }
                 }
             })
@@ -357,5 +365,36 @@ sealed interface Gen<out A> {
         val posInt = int(1..Int.MAX_VALUE)
         val nonNegInt = int(0..Int.MAX_VALUE)
         val anyChar = int(Char.MIN_VALUE.code..Char.MAX_VALUE.code).map { it.toChar() }
+
+        fun <A, Z> map(a: Gen<A>, f: (A) -> Z): Gen<Z> =
+            a.map { a -> f(a) }
+        fun <A, B, Z> map(a: Gen<A>, b: Gen<B>, f: (A, B) -> Z): Gen<Z> =
+            a.flatMap { a -> b.map { b -> f(a, b) } }
+        fun <A, B, C, Z> map(a: Gen<A>, b: Gen<B>, c: Gen<C>, f: (A, B, C) -> Z): Gen<Z> =
+            a.flatMap { a -> b.flatMap { b -> c.map { c -> f(a, b, c) } } }
+        fun <A, B, C, D, Z> map(a: Gen<A>, b: Gen<B>, c: Gen<C>, d: Gen<D>, f: (A, B, C, D) -> Z): Gen<Z> =
+            a.flatMap { a -> b.flatMap { b -> c.flatMap { c -> d.map { d -> f(a, b, c, d) } } } }
+
+        fun <A, Z> flatMap(a: Gen<A>, f: (A) -> Gen<Z>): Gen<Z> =
+            a.flatMap { a -> f(a) }
+        fun <A, B, Z> flatMap(a: Gen<A>, b: Gen<B>, f: (A, B) -> Gen<Z>): Gen<Z> =
+            a.flatMap { a -> b.flatMap { b -> f(a, b) } }
+        fun <A, B, C, Z> flatMap(a: Gen<A>, b: Gen<B>, c: Gen<C>, f: (A, B, C) -> Gen<Z>): Gen<Z> =
+            a.flatMap { a -> b.flatMap { b -> c.flatMap { c -> f(a, b, c) } } }
+        fun <A, B, C, D, Z> flatMap(a: Gen<A>, b: Gen<B>, c: Gen<C>, d: Gen<D>, f: (A, B, C, D) -> Gen<Z>): Gen<Z> =
+            a.flatMap { a -> b.flatMap { b -> c.flatMap { c -> d.flatMap { d -> f(a, b, c, d) } } } }
+
+        fun <A : Any> foreach(ga: Gen<A>, count: Int = 100, block: (A) -> Unit) {
+            ga.foreach(count = count) { a -> block(a) }
+        }
+        fun <A : Any, B : Any> foreach(ga: Gen<A>, gb: Gen<B>, count: Int = 100, block: (A, B) -> Unit) {
+            (ga zip gb).foreach(count = count) { (a, b) -> block(a, b) }
+        }
+        fun <A : Any, B : Any, C : Any> foreach(ga: Gen<A>, gb: Gen<B>, gc: Gen<C>, count: Int = 100, block: (A, B, C) -> Unit) {
+            ((ga zip gb) zip gc).foreach(count = count) { (ab, c) ->
+                val (a, b) = ab
+                block(a, b, c)
+            }
+        }
     }
 }
