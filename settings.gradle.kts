@@ -1,4 +1,4 @@
-rootProject.name = "kotlin-random-gen"
+rootProject.name = "kotlin-data"
 
 dependencyResolutionManagement {
     repositories {
