@@ -1,5 +1,6 @@
 package one.wabbit.random.gen
 
+import java.io.Serializable
 import kotlin.experimental.and
 
 private const val MAX_ARRAY_SIZE = Int.MAX_VALUE - 8
@@ -10,7 +11,7 @@ enum class BitOrder {
 }
 
 // FIXME: really unoptimized
-class MutableBitDeque {
+class MutableBitDeque : Serializable {
     private var buf = ArrayDeque<Boolean>()
 
     val length: Long
@@ -20,6 +21,7 @@ class MutableBitDeque {
         get() = buf.size.toLong()
 
     operator fun get(index: Long): Boolean {
+        require(index >= 0 && index < buf.size) { "Index $index out of range [0..${buf.size - 1}]" }
         return buf[index.toInt()]
     }
 
@@ -32,7 +34,8 @@ class MutableBitDeque {
     }
 
     fun fillAndSet(index: Long, value: Boolean) {
-        while (buf.size < index - 1) {
+        require(index >= 0) { "index must be non-negative, but was $index" }
+        while (buf.size < index) {
             buf.add(false)
         }
         buf.add(value)
@@ -63,12 +66,13 @@ class MutableBitDeque {
     }
 
     fun removeFirst(n: Int, order: BitOrder = BitOrder.MSB_FIRST): Long {
+        require(n <= buf.size) { "Trying to remove $n bits but only ${buf.size} available" }
         var value = 0L
         for (i in 0 until n) {
             val b = removeFirst()
             value = when (order) {
                 BitOrder.MSB_FIRST -> (value shl 1) or if (b) 1L else 0L
-                BitOrder.LSB_FIRST -> (value shr 1) or if (b) (1L shl (n - 1)) else 0L
+                BitOrder.LSB_FIRST -> value or if (b) (1L shl i) else 0L
             }
         }
         return value
