@@ -13,6 +13,8 @@ version = "1.2.0"
 plugins {
     kotlin("jvm") version "2.0.20"
 
+    kotlin("plugin.serialization") version "2.0.20"
+
     id("maven-publish")
 }
 
@@ -30,8 +32,13 @@ publishing {
 dependencies {
     implementation("com.github.wabbit-corp:kotlin-data-need:1.2.0")
     implementation("com.github.wabbit-corp:kotlin-data:1.2.0")
+    implementation("com.github.wabbit-corp:kotlin-base58:1.1.1")
 
     testImplementation(kotlin("test"))
+
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-core:1.8.0")
+
+    testImplementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.0")
 }
 
 java {

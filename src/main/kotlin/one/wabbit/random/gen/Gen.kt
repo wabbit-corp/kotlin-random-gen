@@ -6,110 +6,14 @@ import one.wabbit.data.Need
 import one.wabbit.data.consListOf
 import kotlin.math.*
 
-//sealed interface Gen<R> {//
-//    fun next(random: SplittableRandom): R {
-//        when (this) {
-//            is Pure -> return value
-//            is FromInt -> {
-//                if (from == to) return f(from)
-//                return f(random.nextInt(from, to))
-//            }
-//            is OneOf -> {
-//                assert(options.isNotEmpty())
-//                assert(options.all { it.first >= 0.0 })
-//
-//                val total = options.sumOf { it.first }
-//                val r = random.nextDouble() * total
-//                var sum = 0.0
-//                for ((weight, gen) in options) {
-//                    sum += weight
-//                    if (r < sum)
-//                        return gen.next(random)
-//                }
-//
-//                return options.last().second.next(random)
-//            }
-//            is Sequence<*> -> {
-//                return list.map { it.next(random) } as R
-//            }
-//            is Map<*, *> -> {
-//                return (f as (Any?) -> R)(gen.next(random))
-//            }
-//            is FlatMap<*, *> -> {
-//                return (f as (Any?) -> Gen<R>)(gen.next(random)).next(random)
-//            }
-//        }
-//    }
-//
-//    fun foreach(random: SplittableRandom, count: Int, f: (R) -> Unit): Unit {
-//        repeat(count) {
-//            f(next(random))
-//        }
-//    }
-//
-//    companion object {
-//        fun <R> pure(value: R): Gen<R> =
-//            Pure(value)
-//        fun <R> oneOf(options: List<R>): Gen<R> {
-//            return Gen.OneOf(options.map { Pair(1.0, Gen.Pure(it)) })
-//        }
-//        fun <R> freq(options: List<Pair<Double, R>>): Gen<R> {
-//            return Gen.OneOf(options.map { Pair(it.first, Gen.Pure(it.second)) })
-//        }
-//        fun <R> freq1(options: List<Pair<Double, Gen<R>>>): Gen<R> {
-//            return Gen.OneOf(options)
-//        }
-//        fun <R> sequence(list: List<Gen<R>>): Gen<List<R>> =
-//            Sequence(list)
-//
-//        fun <R> repeat(count: Int, gen: Gen<R>): Gen<List<R>> =
-//            Sequence(List(count) { gen })
-//
-//        fun int(from: Int, until: Int): Gen<Int> =
-//            FromInt(from, until) { it }
-//
-//        fun <R> filter(gen: Gen<R>, f: (R) -> Boolean): Gen<R> {
-//            return gen.flatMap { r ->
-//                if (f(r))
-//                    pure(r)
-//                else
-//                    filter(gen, f)
-//            }
-//        }
-//
-//        val anyChar = int(Char.MAX_VALUE.code, Char.MAX_VALUE.code)
-//        val anyDefinedChar = filter(anyChar) { it.toChar().isDefined() }
-//    }
-//}
+
 
 sealed interface Gen<out A> {
     data object Fail : Gen<Nothing>
     data class Done<out A>(val value: A) : Gen<A>
     data class Delay<out A>(val value: Need<Gen<A>>) : Gen<A>
 
-//    data class FromInt<R>(val from: Int, val to: Int, val f: (Int) -> R) : Gen<R> {
-//        init {
-//            require(from <= to)
-//        }
-//    }
-//
-//    data class FromLong<R>(val from: Long, val to: Long, val f: (Long) -> R) : Gen<R> {
-//        init {
-//            require(from <= to)
-//        }
-//    }
-//
-//    data class FromUniform<R>(val f: (Double) -> R) : Gen<R>
-//
-//    data class OneOf<R>(val options: List<Pair<Double, Gen<R>>>) : Gen<R> {
-//        init {
-//            assert(options.isNotEmpty())
-//            assert(options.all { it.first >= 0.0 })
-//        }
-//    }
-
     data class ReadN(val n: Int) : Gen<ULong>
-    // data class Filter<A>(val value: Gen<A>, val predicate: (A) -> Boolean) : Gen<A>
     data class FlatMap<Z, out A>(val left: Gen<Z>, val f: (Z) -> Gen<A>?) : Gen<A>
 
     fun <B> map(f: (A) -> B): Gen<B> =

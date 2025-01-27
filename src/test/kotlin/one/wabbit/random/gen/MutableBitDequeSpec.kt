@@ -1,13 +1,9 @@
 package one.wabbit.random.gen
 
-import java.io.ByteArrayInputStream
-import java.io.ByteArrayOutputStream
-import java.io.ObjectInputStream
-import java.io.ObjectOutputStream
 import java.util.*
-import kotlin.collections.ArrayDeque
 import kotlin.math.min
 import kotlin.test.*
+import kotlinx.serialization.json.Json
 
 class MutableBitDequeSpec {
     @Test
@@ -35,67 +31,6 @@ class MutableBitDequeSpec {
 
     private fun randomLong(rng: SplittableRandom): Long =
         rng.nextLong()
-
-    /**
-     * A simple reference model that parallels MutableBitDeque,
-     * using an ArrayDeque<Boolean> internally.
-     */
-    private class ReferenceBitDeque {
-        val buf = ArrayDeque<Boolean>()
-        val size: Long get() = buf.size.toLong()
-
-        operator fun get(index: Long): Boolean = buf[index.toInt()]
-        operator fun set(index: Long, value: Boolean) {
-            buf[index.toInt()] = value
-        }
-
-        fun add(value: Boolean) {
-            buf.add(value)
-        }
-
-        fun fillAndSet(index: Long, value: Boolean) {
-            while (buf.size < index - 1) {
-                buf.add(false)
-            }
-            buf.add(value)
-        }
-
-        fun removeFirst(): Boolean {
-            return buf.removeFirst()
-        }
-
-        fun removeFirst(n: Int, order: BitOrder): Long {
-            var value = 0L
-            for (i in 0 until n) {
-                val b = removeFirst()
-                when (order) {
-                    BitOrder.MSB_FIRST -> {
-                        value = (value shl 1) or if (b) 1L else 0L
-                    }
-                    BitOrder.LSB_FIRST -> {
-                        // set the i-th bit in "value" with b
-                        if (b) value = value or (1L shl i)
-                    }
-                }
-            }
-            return value
-        }
-
-        override fun equals(other: Any?): Boolean {
-            if (other !is ReferenceBitDeque) return false
-            return buf == other.buf
-        }
-
-        override fun hashCode(): Int = buf.hashCode()
-
-        override fun toString(): String {
-            return buildString {
-                append("RefDeque(\"")
-                for (bit in buf) append(if (bit) '1' else '0')
-                append("\")")
-            }
-        }
-    }
 
     /**
      * Verify contents of [actual] vs [reference].
@@ -208,14 +143,13 @@ class MutableBitDequeSpec {
                 }
                 2 -> {
                     // fillAndSet
-                    // pick a random index possibly beyond size
                     val index = rng.nextLong(0, 50)
                     val bit = randomBoolean(rng)
                     deque.fillAndSet(index, bit)
                     ref.fillAndSet(index, bit)
                 }
                 3 -> {
-                    // set(index, value) if index in range
+                    // set(index, value)
                     if (ref.size > 0) {
                         val idx = rng.nextLong(ref.size)
                         val bit = randomBoolean(rng)
@@ -262,7 +196,7 @@ class MutableBitDequeSpec {
                     }
                 }
             }
-            // occasionally check everything matches
+            // occasionally check everything
             if (rng.nextInt(20) == 0) {
                 assertBitDequeEquals(deque, ref, "After operation $op")
             }
@@ -312,12 +246,12 @@ class MutableBitDequeSpec {
         val dq = MutableBitDeque()
 
         // removing a single bit from empty should throw NoSuchElementException
-        assertFailsWith<NoSuchElementException> {
+        assertFailsWith<IllegalStateException> {
             dq.removeFirst()
         }
 
         // removing multiple bits from empty should also fail
-        assertFailsWith<IllegalArgumentException> {
+        assertFailsWith<IllegalStateException> {
             dq.removeFirst(5, BitOrder.MSB_FIRST)
         }
 
@@ -341,7 +275,7 @@ class MutableBitDequeSpec {
         }
 
         // set out-of-range => should throw
-        assertFailsWith<IndexOutOfBoundsException> {
+        assertFailsWith<IllegalArgumentException> {
             dq[50] = false
         }
     }
@@ -407,5 +341,139 @@ class MutableBitDequeSpec {
         dq.add(false)
         dq.add(true)
         assertEquals("MutableBitDeque(\"101\")", dq.toString())
+    }
+
+    @Test
+    fun testAllBytesMSBAndLSB() {
+        // We'll test the sign-extension correctness by trying all bytes -128..127
+        for (b in Byte.MIN_VALUE..Byte.MAX_VALUE) {
+            checkByteRoundTrip(b.toByte(), BitOrder.MSB_FIRST)
+            checkByteRoundTrip(b.toByte(), BitOrder.LSB_FIRST)
+        }
+    }
+
+    private fun checkByteRoundTrip(b: Byte, order: BitOrder) {
+        // Reference model (ArrayDeque<Boolean>)
+        val ref = ReferenceBitDeque()
+        // Our optimized LongArray version
+        val opt = MutableBitDeque()
+
+        // Add the byte in the given order
+        ref.addAll(b, order)
+        opt.addAll(b, order)
+
+        // Now remove 8 bits from each in the same order
+        val refVal = ref.removeFirst(8, order)
+        val optVal = opt.removeFirst(8, order)
+
+        val refByte = (refVal and 0xFF).toByte()
+        val optByte = (optVal and 0xFF).toByte()
+
+        assertEquals(
+            b, refByte,
+            "Reference mismatch: expected byte=$b, got $refByte, order=$order"
+        )
+        assertEquals(
+            b, optByte,
+            "Optimized mismatch: expected byte=$b, got $optByte, order=$order"
+        )
+    }
+
+    /**
+     * Remove 0 bits from an empty or non-empty deque. Should return 0L, do nothing.
+     */
+    @Test
+    fun testRemoveFirstZero() {
+        val dq = MutableBitDeque()
+        // removing 0 bits from empty => no error
+        val vEmpty = dq.removeFirst(0, BitOrder.MSB_FIRST)
+        assertEquals(0L, vEmpty)
+        assertEquals(0L, dq.size)
+
+        // fill some bits
+        dq.addAll(0b10101010.toByte()) // 8 bits
+        // remove 0 bits from non-empty => should yield 0, not reduce size
+        val v2 = dq.removeFirst(0, BitOrder.LSB_FIRST)
+        assertEquals(0L, v2)
+        assertEquals(8L, dq.size)
+    }
+
+    /**
+     * fillAndSet(0, true) on empty => we get 1 bit set.
+     */
+    @Test
+    fun testFillAndSetZeroIndexOnEmpty() {
+        val dq = MutableBitDeque()
+        dq.fillAndSet(0, true)
+        assertEquals(1L, dq.size)
+        assertTrue(dq[0])
+    }
+
+    /**
+     * fillAndSet(size, value) => appends exactly one bit.
+     */
+    @Test
+    fun testFillAndSetSize() {
+        val dq = MutableBitDeque()
+        dq.add(false)  // size=1
+        dq.add(true)   // size=2
+        assertEquals(2L, dq.size)
+
+        // fillAndSet(2, true) => we want an extra bit at index=2
+        dq.fillAndSet(2, true)
+        assertEquals(3L, dq.size)
+        assertFalse(dq[0])
+        assertTrue(dq[1])
+        assertTrue(dq[2])
+    }
+
+    /**
+     * Large expansions: fillAndSet with big index => ensures capacity grows.
+     * We'll not go too extreme, but enough to confirm expansions.
+     */
+    @Test
+    fun testFillAndSetLargeIndex() {
+        val dq = MutableBitDeque()
+        dq.fillAndSet(100, true) // index=100 => 101 bits total
+        assertEquals(101L, dq.size)
+        // Indices 0..99 => false, 100 => true
+        for (i in 0L..99L) {
+            assertFalse(dq[i], "Bit at $i should be false.")
+        }
+        assertTrue(dq[100], "Bit at 100 should be true.")
+    }
+
+    /**
+     * Quick check that removing 0 from a partially-filled buffer also works.
+     * (Non-empty scenario, remove 0 => no change).
+     */
+    @Test
+    fun testRemoveFirstZeroNonEmpty() {
+        val dq = MutableBitDeque()
+        dq.addAll(0b11110000.toByte()) // 8 bits
+        val oldSize = dq.size
+        val v = dq.removeFirst(0, BitOrder.MSB_FIRST)
+        assertEquals(0L, v)
+        assertEquals(oldSize, dq.size, "Size should be unchanged after removeFirst(0).")
+    }
+
+    /**
+     * Optional: check custom serialization using kotlinx.serialization (KMP-friendly).
+     * We'll ensure the bits match after round-trip.
+     */
+    @Test
+    fun testSerializationRoundTrip() {
+        val dq = MutableBitDeque()
+        dq.add(true)
+        dq.addAll(0b10101010.toByte()) // 8 bits
+        dq.fillAndSet(10, true) // ensure we have more bits
+        // Now let's do a JSON round-trip
+        val json = Json.encodeToString(dq)
+        val dq2 = Json.decodeFromString<MutableBitDeque>(json)
+
+        // They should be equal
+        assertEquals(dq, dq2)
+        // Also have same string representation
+        assertEquals(dq.toString(), dq2.toString())
     }
 }

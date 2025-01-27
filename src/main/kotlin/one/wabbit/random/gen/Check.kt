@@ -9,8 +9,20 @@ interface BitInput {
     companion object {
         fun of(random: SplittableRandom): BitInput =
             object : BitInput {
-                override fun next(bits: Int): ULong =
-                    random.nextLong().toULong() and ((1UL shl bits) - 1UL)
+                override fun next(bits: Int): ULong {
+                    require(bits in 0..64) {
+                        "Requested $bits bits, but must be within [0..64]."
+                    }
+
+                    val raw = random.nextLong().toULong()
+                    return if (bits == 64) {
+                        // Return all bits unmasked
+                        raw
+                    } else {
+                        // Mask out only the requested bits
+                        raw and ((1UL shl bits) - 1UL)
+                    }
+                }
                 override fun available(): Long =
                     Long.MAX_VALUE
             }
@@ -30,8 +42,6 @@ sealed interface RunResult<out A> {
     data object Eof : RunResult<Nothing>
     data object Filtered : RunResult<Nothing>
 }
-
-private fun <A, B> unsafeCast(value: A): B = value as B
 
 fun <A : Any> Gen<A>.sampleR(random: BitInput): RunResult<A> {
     val stack = mutableListOf<(Any) -> Gen<Any>?>()
@@ -119,7 +129,14 @@ class FailedToMinimizeException(val original: Throwable, val tape: Tape)
     : Throwable(original.message, original)
 
 object Tests {
-    fun <A : Any> foreachMin(gen: Gen<A>, random: SplittableRandom, iters: Int, minimizerSteps: Int = 10000, f: (A) -> Unit): Unit {
+    fun <A : Any> foreachMin(
+        gen: Gen<A>,
+        random: SplittableRandom,
+        iters: Int,
+        minimizerSteps: Int = 10000,
+        exceptionMode: ExceptionComparisonMode = ExceptionComparisonMode.SAME_CLASS_MESSAGE_TOP_FRAME,
+        f: (A) -> Unit
+    ): Unit {
         var discarded = 0
 
         repeat(iters) {
@@ -141,28 +158,20 @@ object Tests {
                     try {
                         f(result.value)
                     } catch (e0: Throwable) {
+                        // Always re-throw certain critical errors:
                         if (e0 is VirtualMachineError) throw e0
 
                         println("Successfully caught exception $e0")
                         println(result.value)
                         val tape0 = WithTape(tape, result.value)
 
-                        val p : (A) -> Boolean = p@{
+                        val p : (A) -> Boolean = {
                             try {
                                 f(it)
-                                return@p false
+                                false
                             } catch (e1: Throwable) {
                                 if (e1 is VirtualMachineError) throw e1
-                                if (e1.javaClass !== e0.javaClass) return@p false
-                                // if (e1.message != e0.message) return@p false
-                                // Compare the stack traces
-                                val st1 = e1.stackTrace
-                                val st0 = e0.stackTrace
-                                if (st1.isEmpty() && st0.isEmpty()) return@p true
-                                if (st1[0].className != st0[0].className) return@p false
-                                if (st1[0].methodName != st0[0].methodName) return@p false
-                                if (st1[0].lineNumber != st0[0].lineNumber) return@p false
-                                return@p true
+                                compareExceptions(e0, e1, exceptionMode)
                             }
                         }
 
@@ -184,7 +193,13 @@ object Tests {
 
 }
 
-fun <A : Any> Gen<A>.foreachMin(random: SplittableRandom, iters: Int, f: (A) -> Unit): Unit {
+fun <A : Any> Gen<A>.foreachMin(
+    random: SplittableRandom,
+    iters: Int,
+    minimizerSteps: Int = 10000,
+    exceptionMode: ExceptionComparisonMode = ExceptionComparisonMode.SAME_CLASS_MESSAGE_TOP_FRAME,
+    f: (A) -> Unit
+): Unit {
     var discarded = 0
 
     repeat(iters) {
@@ -208,27 +223,19 @@ fun <A : Any> Gen<A>.foreachMin(random: SplittableRandom, iters: Int, f: (A) -> 
                 } catch (e0: Throwable) {
                     val tape0 = WithTape(tape, result.value)
 
-                    val p : (A) -> Boolean = p@{
+                    val p : (A) -> Boolean = {
                         try {
                             f(it)
-                            return@p false
+                            false
                         } catch (e1: Throwable) {
-                            if (e1.javaClass !== e0.javaClass) return@p false
-                            if (e1.message != e0.message) return@p false
-                            // Compare the stack traces
-                            val st1 = e1.stackTrace
-                            val st0 = e0.stackTrace
-                            if (st1.isEmpty() && st0.isEmpty()) return@p true
-                            if (st1[0].className != st0[0].className) return@p false
-                            if (st1[0].methodName != st0[0].methodName) return@p false
-                            if (st1[0].lineNumber != st0[0].lineNumber) return@p false
-                            return@p true
+                            if (e1 is VirtualMachineError) throw e1
+                            compareExceptions(e0, e1, exceptionMode)
                         }
                     }
 
                     check(p(result.value)) { "Expected exception to be thrown" }
 
-                    val r = this.minimize(tape0, 10000, random.nextLong(), p)
+                    val r = this.minimize(tape0, minimizerSteps, random.nextLong(), p)
 
                     if (r == null) throw FailedToMinimizeException(e0, tape0.tape)
                     else throw MinimizedException(e0, r.tape, r.result)
@@ -312,12 +319,13 @@ fun <A : Any> Gen<A>.minimize(v: WithTape<A>, iters: Int, seed: Long, p: (A) -> 
         val tapeIndex = random.nextInt(bestTapes.size)
         val selectedTape = bestTapes[tapeIndex]
 
-        val flips = selectedTape.tape.seed.flips.copy()
+        val flips = selectedTape.tape.seed.flips.toMutableBitDeque()
 
         val flipCount = minOf(
 //            random.nextInt(selectedTape.tape.read.toInt()),
             random.nextInt(selectedTape.tape.read.toInt()),
             random.nextInt(4) + 1)
+
         repeat(flipCount) {
             val index = minOf(random.nextInt(selectedTape.tape.read.toInt()), random.nextInt(selectedTape.tape.read.toInt()))
             flips.fillAndSet(index.toLong(), random.nextBoolean())
@@ -346,17 +354,20 @@ fun <A : Any> Gen<A>.minimize(v: WithTape<A>, iters: Int, seed: Long, p: (A) -> 
                     false -> { /* do nothing */ }
                     true -> {
                         val newFTape = WithTape(testTape, result.value)
-                        bestTapes.add(newFTape)
-                        bestTapes.sortBy { TapeComplexity.of(it.tape) }
+                        // Check if the new tape is different from the best tapes
+                        if (bestTapes.none { it.result == newFTape.result }) {
+                            bestTapes.add(newFTape)
+                            bestTapes.sortBy { TapeComplexity.of(it.tape) }
 //                        for (t in bestTapes) {
 //                            println("Tape: ${t.tape.seed.flips}")
 //                            println("Value: ${t.result}")
 //                            println("Complexity: ${TapeComplexity.of(t.tape)}")
 //                            println()
 //                        }
-                        println("Min complexity: ${TapeComplexity.of(bestTapes[0].tape)}")
-                        while (bestTapes.size >= 10)
-                            bestTapes.removeAt(bestTapes.size - 1)
+                            // println("Min complexity: ${TapeComplexity.of(bestTapes[0].tape)}")
+                            while (bestTapes.size >= 10)
+                                bestTapes.removeAt(bestTapes.size - 1)
+                        }
                     }
                 }
         }
