@@ -6,8 +6,6 @@ import one.wabbit.data.Need
 import one.wabbit.data.consListOf
 import kotlin.math.*
 
-
-
 sealed interface Gen<out A> {
     data object Fail : Gen<Nothing>
     data class Done<out A>(val value: A) : Gen<A>
@@ -188,6 +186,12 @@ sealed interface Gen<out A> {
             int(range.first.code .. range.last.code).map { it.toChar() }
         fun range(range: IntRange): Gen<Int> =
             int(range.first .. range.last)
+
+        fun <T> listOf(gen: Gen<T>, maxSize: Int = 5, minSize: Int = 0): Gen<List<T>> =
+            (int(minSize..maxSize) zip int(minSize..maxSize))
+                .flatMap { (s1, s2) -> repeat(minOf(s1, s2), gen) }
+        fun <T> listOf(gen: Gen<T>, range: IntRange): Gen<List<T>> =
+            (int(range) zip int(range)).flatMap { (s1, s2) -> repeat(minOf(s1, s2), gen) }
 
         fun <R> oneOf(vararg options: R): Gen<R> =
             oneOf(options.toList())
