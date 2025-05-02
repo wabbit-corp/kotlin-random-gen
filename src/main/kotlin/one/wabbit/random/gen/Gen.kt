@@ -193,6 +193,19 @@ sealed interface Gen<out A> {
         fun <T> listOf(gen: Gen<T>, range: IntRange): Gen<List<T>> =
             (int(range) zip int(range)).flatMap { (s1, s2) -> repeat(minOf(s1, s2), gen) }
 
+        fun <T> subset(it: Iterable<T>): Gen<List<T>> {
+            val list = it.toList()
+            return Gen.repeat(list.size, bool).map {
+                val result = mutableListOf<T>()
+                for (i in it.indices) {
+                    if (it[i]) {
+                        result.add(list[i])
+                    }
+                }
+                result
+            }
+        }
+
         fun <R> oneOf(vararg options: R): Gen<R> =
             oneOf(options.toList())
         fun <R> oneOf(options: List<R>): Gen<R> =
