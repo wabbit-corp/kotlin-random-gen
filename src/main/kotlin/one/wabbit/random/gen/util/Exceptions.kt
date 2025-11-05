@@ -1,4 +1,4 @@
-package one.wabbit.random.gen
+package one.wabbit.random.gen.util
 
 enum class ExceptionComparisonMode {
     /** Check that exception classes match only. */

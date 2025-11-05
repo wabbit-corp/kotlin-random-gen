@@ -1,28 +1,25 @@
 package one.wabbit.random.gen
 
+import one.wabbit.random.gen.util.MutableBitDeque
 import java.util.SplittableRandom
 
 /**
- * [Tape] is an internal data structure for reading random bits in a deterministic,
+ * [RawTapeReader] is an internal data structure for reading random bits in a deterministic,
  * replayable way. It allows us to reconstruct the entire chain of "random" decisions
- * for a particular generated value, as well as attempt "shrinks" by flipping bits
- * near the beginning of the tape.
+ * for a particular generated value.
  *
  * The design here is inspired by Hedgehog-style property-based testing:
- *   - We store bits in a [MutableBitDeque].
+ *   - We store bits in a [one.wabbit.random.gen.util.MutableBitDeque].
  *   - Each generated value reads some number of bits off the tape.
  *   - If a test fails, we can try toggling bits early in the tape to see if that
  *     produces a "smaller" failing input.
  *
- * Normally, you won't need to use [Tape] directly—just call higher-level functions
+ * Normally, you won't need to use [RawTapeReader] directly—just call higher-level functions
  * like [Gen.checkAll], [Gen.foreach], or [Gen.sample]. However, if you need custom
  * manipulations or want to debug the bit-level representation of generated values,
- * you can delve into [Tape], [TapeSeed], and the related classes.
- *
- * NOTE: This class may change in future versions. Rely on it only if you are prepared
- * for potential internal API adjustments.
+ * you can delve into [RawTapeReader], [TapeSeed], and the related classes.
  */
-class Tape(val seed: TapeSeed) {
+class RawTapeReader(val seed: TapeSeed) {
     var read = 0L
     var read0 = 0L
     var read1 = 0L

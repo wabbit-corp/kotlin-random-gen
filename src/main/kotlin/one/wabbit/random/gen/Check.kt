@@ -1,38 +1,58 @@
 package one.wabbit.random.gen
 
+import one.wabbit.data.Need
+import one.wabbit.random.gen.RunResult.*
+import one.wabbit.random.gen.util.Codecs
+import one.wabbit.random.gen.util.ExceptionComparisonMode
+import one.wabbit.random.gen.util.MutableBitDeque
+import one.wabbit.random.gen.util.compareExceptions
+import one.wabbit.random.gen.util.unsafeCast
 import java.util.SplittableRandom
 
-interface BitInput {
+interface BitSource {
     fun next(bits: Int): ULong
+
     fun available(): Long
 
+    val pos: ULong
+    fun nextAnnotationId(): ULong
+    fun annotate(anno: TapeAnnotation): Unit
+
     companion object {
-        fun of(random: SplittableRandom): BitInput =
-            object : BitInput {
+        fun of(random: SplittableRandom): BitSource =
+            object : BitSource {
+                override var pos: ULong = 0UL
+
                 override fun next(bits: Int): ULong {
                     require(bits in 0..64) {
                         "Requested $bits bits, but must be within [0..64]."
                     }
 
                     val raw = random.nextLong().toULong()
-                    return if (bits == 64) {
+                    val result = if (bits == 64) {
                         // Return all bits unmasked
                         raw
                     } else {
                         // Mask out only the requested bits
                         raw and ((1UL shl bits) - 1UL)
                     }
+                    pos += bits.toULong()
+                    return result
                 }
                 override fun available(): Long =
                     Long.MAX_VALUE
+
+                override fun nextAnnotationId(): ULong = 0uL
+                override fun annotate(anno: TapeAnnotation) { /* no-op */ }
             }
 
-        fun of(tape: Tape, limit: Long = Long.MAX_VALUE): BitInput =
-            object : BitInput {
-                override fun next(bits: Int): ULong =
-                    tape.read(bits)
-                override fun available(): Long =
-                    limit - tape.read
+        fun of(tape: RawTapeReader, limit: Long = Long.MAX_VALUE): BitSource =
+            object : BitSource {
+                override var pos: ULong = tape.read.toULong()
+                override fun next(bits: Int): ULong = tape.read(bits)
+                override fun available(): Long = limit - tape.read
+                override fun nextAnnotationId(): ULong = 0uL
+                override fun annotate(anno: TapeAnnotation) { /* no-op */ }
             }
     }
 }
@@ -43,54 +63,190 @@ sealed interface RunResult<out A> {
     data object Filtered : RunResult<Nothing>
 }
 
-fun <A : Any> Gen<A>.sampleR(random: BitInput): RunResult<A> {
-    val stack = mutableListOf<(Any) -> Gen<Any>?>()
-    var current: Gen<Any> = this
+data class WithTape<out A>(val tape: RawTapeReader, val result: A)
+
+fun <A> Gen<A>.sampleR(source: BitSource): RunResult<A> {
+    fun readN(n: Int): ULong? {
+        require(n in 0..64)
+        if (source.available() < n) return null
+        if (n == 0) return 0u
+        return source.next(n)
+    }
+
+    // one adapter, reused by all samplers in this run
+    val rdr = Codecs.ReadBits { n -> readN(n) }
+
+    val stack = mutableListOf<(Any?) -> Gen<Any?>?>()
+    var current: Gen<Any?> = this
 
     while (true) {
-        when (current) {
+        val r = when (current) {
             is Gen.Fail -> {
                 return RunResult.Filtered
             }
             is Gen.Delay -> {
                 // Evaluate the thunk
                 current = current.value.value
+                continue
             }
-            is Gen.Done, is Gen.ReadN -> {
-                val r = when (current) {
-                    is Gen.Done -> current.value
-                    is Gen.ReadN -> {
-                        assert(current.n >= 0)
-                        if (current.n == 0) 0
-                        else if (random.available() >= current.n) random.next(current.n)
-                        else return RunResult.Eof
+            is Gen.Label -> {
+                current = current.body
+                continue
+            }
+            is Gen.FlatMap<*, Any?> -> {
+                stack.add(unsafeCast(current.f))
+                current = current.left
+                continue
+            }
+
+            is Gen.Choose<*> -> {
+                val w = current.options
+                val n = Codecs.readUint(0U..(w.total - 1UL).toUInt(), rdr)
+                    ?: return RunResult.Eof
+                val nextGen = w.draw(n.toULong())
+                current = nextGen
+                continue
+            }
+            is Gen.ListOf<*> -> {
+                val lenGen = current.size
+                val elemGen = current.element
+                current = lenGen.flatMap { len ->
+                    if (len < 0) Gen.const(emptyList())
+                    else {
+                        fun go(i: Int, acc: List<Any?>): Gen<List<Any?>> =
+                            if (i >= len) Gen.const(acc)
+                            else elemGen.flatMap { e -> go(i + 1, acc + e) }
+                        go(0, emptyList())
                     }
+                }
+                continue
+            }
+            is Gen.SeqOf<*> -> {
+                val lenGen = current.size
+                val elemGen: (List<Any?>) -> Gen<Any?> = unsafeCast(current.element)
+                current = lenGen.flatMap { len ->
+                    if (len < 0) Gen.const(emptyList())
+                    else {
+                        fun go(i: Int, acc: List<Any?>): Gen<List<Any?>> =
+                            if (i >= len) Gen.const(acc)
+                            else elemGen(acc).flatMap { e -> go(i + 1, acc + e) }
+                        go(0, emptyList())
+                    }
+                }
+                continue
+            }
+
+            is Gen.Done,
+            is Gen.ChooseBool, is Gen.ChooseInt,
+            is Gen.ChooseUInt, is Gen.ChooseBits,
+            is Gen.ChooseDouble
+                 -> {
+                when (current) {
+                    is Gen.Done -> current.value
+                    is Gen.ChooseBool -> Codecs.readBool(rdr) ?: return RunResult.Eof
+                    is Gen.ChooseInt -> Codecs.readInt(current.range, rdr) ?: return RunResult.Eof
+                    is Gen.ChooseUInt -> Codecs.readUint(current.range, rdr) ?: return RunResult.Eof
+                    is Gen.ChooseBits -> rdr.read(current.width) ?: return RunResult.Eof
+                    is Gen.ChooseDouble -> Codecs.readDoubleU01(current.bits, rdr) ?: return RunResult.Eof
                     else -> error("unreachable")
                 }
-
-                if (stack.isEmpty()) {
-                    return RunResult.Ok(r as A)
-                } else {
-                    val f = stack.removeLast()
-                    val next = f(r)
-                    if (next == null) {
-                        // Filtered
-                        return RunResult.Filtered
-                    } else {
-                        current = next
-                    }
-                }
             }
-            is Gen.FlatMap<*, Any> -> {
-                stack.add(unsafeCast(current.f))
-                current = current.left as Gen<Any>
+        }
+
+        if (stack.isEmpty()) {
+            @Suppress("UNCHECKED_CAST")
+            return Ok(r as A)
+        } else {
+            val f = stack.removeLast()
+            val next = f(r)
+            if (next == null) {
+                // Filtered
+                return RunResult.Filtered
+            } else {
+                current = next
             }
         }
     }
 }
 
+sealed interface Run<out A> {
+    data class Done<out A>(val value: A) : Run<A>
+    data class FlatMap<A, out B>(val fa: Run<A>, val f: (A) -> Run<B>) : Run<B>
+    data class Delay<out A>(val thunk: Need<Run<A>>) : Run<A>
+    data class ReadN<out B>(val n: Int, val cont: (ULong) -> Run<B>) : Run<B>
+
+    fun <Z> flatMap(f: (A) -> Run<Z>): Run<Z> = FlatMap(this, f)
+    fun <Z> map(f: (A) -> Z): Run<Z> = flatMap { Done(f(it)) }
+
+    companion object {
+        fun <A> now(value: A): Run<A> = Done(value)
+        fun <A> delay(thunk: Need<Run<A>>): Run<A> = Delay(thunk)
+    }
+}
+
+//fun <A> Gen<A>.sampleC(): Run<RunResult<Pair<TapeData, A>>> {
+//    when (this) {
+//        is Gen.Fail -> return Run.now(RunResult.Filtered)
+//        is Gen.Delay -> return Run.delay(this.value.map { it.sampleC() })
+//        is Gen.Label -> return this.body.sampleC()
+//        is Gen.FlatMap<*, A> -> {
+//            this as Gen.FlatMap<Any?, A>
+//            return Run.delay(Need.apply { this.left.sampleC() })
+//                .flatMap { this.f(it)?.sampleC() ?: Run.now(RunResult.Filtered) }
+//        }
+//        is Gen.Choose<*> -> {
+//
+//        }
+//        is Gen.ListOf<*> -> {
+//            val lenGen = current.size
+//            val elemGen = current.element
+//            current = lenGen.flatMap { len ->
+//                if (len < 0) Gen.const(emptyList())
+//                else {
+//                    fun go(i: Int, acc: List<Any?>): Gen<List<Any?>> =
+//                        if (i >= len) Gen.const(acc)
+//                        else elemGen.flatMap { e -> go(i + 1, acc + e) }
+//                    go(0, emptyList())
+//                }
+//            }
+//            continue
+//        }
+//        is Gen.SeqOf<*> -> {
+//            val lenGen = current.size
+//            val elemGen: (List<Any?>) -> Gen<Any?> = unsafeCast(current.element)
+//            current = lenGen.flatMap { len ->
+//                if (len < 0) Gen.const(emptyList())
+//                else {
+//                    fun go(i: Int, acc: List<Any?>): Gen<List<Any?>> =
+//                        if (i >= len) Gen.const(acc)
+//                        else elemGen(acc).flatMap { e -> go(i + 1, acc + e) }
+//                    go(0, emptyList())
+//                }
+//            }
+//            continue
+//        }
+//
+//        is Gen.Done,
+//        is Gen.ChooseBool, is Gen.ChooseInt,
+//        is Gen.ChooseUInt, is Gen.ChooseBits,
+//        is Gen.ChooseDouble
+//            -> {
+//            when (current) {
+//                is Gen.Done -> current.value
+//                is Gen.ChooseBool -> Codecs.readBool(rdr) ?: return RunResult.Eof
+//                is Gen.ChooseInt -> Codecs.readInt(current.range, rdr) ?: return RunResult.Eof
+//                is Gen.ChooseUInt -> Codecs.readUint(current.range, rdr) ?: return RunResult.Eof
+//                is Gen.ChooseBits -> rdr.read(current.width) ?: return RunResult.Eof
+//                is Gen.ChooseDouble -> Codecs.readDoubleU01(current.bits, rdr) ?: return RunResult.Eof
+//                else -> error("unreachable")
+//            }
+//        }
+//    }
+//}
+
+
 fun <A : Any> Gen<A>.sample(random: SplittableRandom): A? =
-    when (val r = sampleR(BitInput.of(random))) {
+    when (val r = sampleR(BitSource.of(random))) {
         is RunResult.Ok -> r.value
         is RunResult.Eof -> null
         is RunResult.Filtered -> null
@@ -102,6 +258,28 @@ fun <A : Any> Gen<A>.sampleUnbounded(random: SplittableRandom): A {
         if (r != null) return r
     }
 }
+
+
+//fun <A : Any> Gen<A>.recordOnce(seed: Long): WithV2<A>? {
+//    val rec = ChoiceIO.Recorder(Entropy(EntropySource.Random(seed)))
+//    return when (val r = sampleC(rec)) {
+//        is RunResult.Ok -> {
+//            val v2 = TapeSeedV2.fromRecorder(seed, rec)
+//            WithV2(seed, v2, r.value)
+//        }
+//        else -> null
+//    }
+//}
+
+//fun <A : Any> Gen<A>.replayOnce(v2: TapeSeedV2, strict: Boolean = false): A? {
+//    val ent = Entropy(if (strict) EntropySource.Replay(TapeSeedV2.toBitSequence(v2))
+//    else EntropySource.Replay(TapeSeedV2.toBitSequence(v2)))
+//    val io: ChoiceIO = if (strict) ChoiceIO.ReplayStrict(ent, v2.log) else ChoiceIO.ReplayAdaptive(ent)
+//    return when (val r = sampleC(io)) {
+//        is RunResult.Ok -> r.value
+//        else -> null
+//    }
+//}
 
 fun <A : Any> Gen<A>.foreach(count: Int = 100, f: (A) -> Unit): Unit {
     val random = SplittableRandom()
@@ -122,10 +300,10 @@ fun <A : Any> Gen<A>.foreach(random: SplittableRandom, count: Int, f: (A) -> Uni
     }
 }
 
-class MinimizedException(val original: Throwable, val tape: Tape, val value: Any)
+class MinimizedException(val original: Throwable, val tape: RawTapeReader, val value: Any)
     : Throwable(original.message, original)
 
-class FailedToMinimizeException(val original: Throwable, val tape: Tape)
+class FailedToMinimizeException(val original: Throwable, val tape: RawTapeReader)
     : Throwable(original.message, original)
 
 object Tests {
@@ -141,8 +319,8 @@ object Tests {
 
         repeat(iters) {
             val currentSeed = random.nextLong()
-            val tape = Tape(TapeSeed(currentSeed, MutableBitDeque()))
-            val result = gen.sampleR(BitInput.of(tape))
+            val tape = RawTapeReader(TapeSeed(currentSeed, MutableBitDeque()))
+            val result = gen.sampleR(BitSource.of(tape))
 
             when (result) {
                 RunResult.Eof -> {
@@ -193,6 +371,7 @@ object Tests {
 
 }
 
+
 fun <A : Any> Gen<A>.foreachMin(
     random: SplittableRandom,
     iters: Int,
@@ -204,8 +383,8 @@ fun <A : Any> Gen<A>.foreachMin(
 
     repeat(iters) {
         val currentSeed = random.nextLong()
-        val tape = Tape(TapeSeed(currentSeed, MutableBitDeque()))
-        val result = this.sampleR(BitInput.of(tape))
+        val tape = RawTapeReader(TapeSeed(currentSeed, MutableBitDeque()))
+        val result = this.sampleR(BitSource.of(tape))
 
         when (result) {
             RunResult.Eof -> {
@@ -246,8 +425,6 @@ fun <A : Any> Gen<A>.foreachMin(
     }
 }
 
-data class WithTape<out A>(val tape: Tape, val result: A)
-
 /**
  * Attempts to find a tape such that when the tape is read using
  * the generator, the resulting value satisfies the condition.
@@ -258,8 +435,8 @@ fun <A : Any> Gen<A>.satisfy(iters: Int, seed: Long, p: (A) -> Boolean): WithTap
 
     repeat(iters) {
         val currentSeed = rng.nextLong()
-        val tape = Tape(TapeSeed(currentSeed, MutableBitDeque()))
-        val result = this.sampleR(BitInput.of(tape))
+        val tape = RawTapeReader(TapeSeed(currentSeed, MutableBitDeque()))
+        val result = this.sampleR(BitSource.of(tape))
 
         when (result) {
             RunResult.Eof -> {
@@ -284,26 +461,6 @@ fun <A : Any> Gen<A>.satisfy(iters: Int, seed: Long, p: (A) -> Boolean): WithTap
     return null
 }
 
-data class TapeComplexity(val length: Long, val positive: Long) : Comparable<TapeComplexity> {
-    override fun compareTo(other: TapeComplexity): Int =
-        when {
-            this.length < other.length -> -1
-            this.length > other.length -> 1
-            this.positive < other.positive -> -1
-            this.positive > other.positive -> 1
-            else -> 0
-        }
-
-    override fun toString(): String {
-        return "L${length}P$positive"
-    }
-
-    companion object {
-        fun of(tape: Tape): TapeComplexity =
-            TapeComplexity(tape.read, tape.read1)
-    }
-}
-
 /**
  * Attempts to find a smaller tape & value still satisfying a condition.
  * If the original value does not satisfy the condition, fails immediately.
@@ -315,7 +472,7 @@ fun <A : Any> Gen<A>.minimize(v: WithTape<A>, iters: Int, seed: Long, p: (A) -> 
 
     val random = SplittableRandom(seed)
 
-    fun makeNewTape(bestTapes: List<WithTape<A>>): Pair<Long, Tape> {
+    fun makeNewTape(bestTapes: List<WithTape<A>>): Pair<Long, RawTapeReader> {
         val tapeIndex = random.nextInt(bestTapes.size)
         val selectedTape = bestTapes[tapeIndex]
 
@@ -332,8 +489,8 @@ fun <A : Any> Gen<A>.minimize(v: WithTape<A>, iters: Int, seed: Long, p: (A) -> 
         }
 
         val newLimit = selectedTape.tape.read * 2
-        val newTape = Tape(TapeSeed(selectedTape.tape.seed.seed, flips))
-        return newLimit to newTape
+        val newRawTapeReader = RawTapeReader(TapeSeed(selectedTape.tape.seed.seed, flips))
+        return newLimit to newRawTapeReader
     }
 
     val bestTapes = mutableListOf(v)
@@ -341,7 +498,7 @@ fun <A : Any> Gen<A>.minimize(v: WithTape<A>, iters: Int, seed: Long, p: (A) -> 
 
     repeat(iters) {
         val (testLimit, testTape) = makeNewTape(bestTapes)
-        val result = sampleR(BitInput.of(testTape, testLimit))
+        val result = sampleR(BitSource.of(testTape, testLimit))
 
         when (result) {
             is RunResult.Filtered ->
@@ -357,7 +514,7 @@ fun <A : Any> Gen<A>.minimize(v: WithTape<A>, iters: Int, seed: Long, p: (A) -> 
                         // Check if the new tape is different from the best tapes
                         if (bestTapes.none { it.result == newFTape.result }) {
                             bestTapes.add(newFTape)
-                            bestTapes.sortBy { TapeComplexity.of(it.tape) }
+                            bestTapes.sortBy { RawTapeComplexity.of(it.tape) }
 //                        for (t in bestTapes) {
 //                            println("Tape: ${t.tape.seed.flips}")
 //                            println("Value: ${t.result}")
@@ -373,7 +530,7 @@ fun <A : Any> Gen<A>.minimize(v: WithTape<A>, iters: Int, seed: Long, p: (A) -> 
         }
     }
 
-    return bestTapes.minBy { TapeComplexity.of(it.tape) }
+    return bestTapes.minBy { RawTapeComplexity.of(it.tape) }
 }
 
 //

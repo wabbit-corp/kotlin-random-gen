@@ -1,4 +1,4 @@
-package one.wabbit.random.gen
+package one.wabbit.random.gen.util
 
 /**
  * Low-level cast function that bypasses certain runtime checks.

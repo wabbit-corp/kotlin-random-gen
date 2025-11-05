@@ -1,4 +1,4 @@
-package one.wabbit.random.gen
+package one.wabbit.random.gen.util
 
 /**
  * A reference bit deque storing each bit as Boolean in an ArrayDeque.

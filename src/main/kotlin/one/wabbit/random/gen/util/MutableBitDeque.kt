@@ -1,4 +1,4 @@
-package one.wabbit.random.gen
+package one.wabbit.random.gen.util
 
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
@@ -16,8 +16,9 @@ enum class BitOrder {
 }
 
 interface BitSequence {
-    operator fun get(index: Long): Boolean
     val size: Long
+
+    operator fun get(index: Long): Boolean
 
     fun toMutableBitDeque(): MutableBitDeque
 }
@@ -33,11 +34,13 @@ class MutableBitDeque : BitSequence {
     private var backing: LongArray = LongArray(4) // Start with 4 * 64 = 256 bits capacity
     internal var capacityInBits: Int = backing.size * 64
 
+    internal var bitCount: Int = 0
+
     internal var startBitIndex: Int = 0
     internal var endBitIndex: Int = 0
 
     override val size: Long
-        get() = bitSize().toLong()
+        get() = bitCount.toLong()
 
     val length: Long
         get() = size
@@ -58,6 +61,7 @@ class MutableBitDeque : BitSequence {
         ensureSpaceFor(1)
         setBitAt(endBitIndex, value)
         endBitIndex = (endBitIndex + 1) % capacityInBits
+        bitCount++
     }
 
     fun fillAndSet(index: Long, value: Boolean) {
@@ -98,9 +102,10 @@ class MutableBitDeque : BitSequence {
     }
 
     fun removeFirst(): Boolean {
-        check(bitSize() > 0) { "Cannot remove from empty deque" }
+        check(bitCount > 0) { "Cannot remove from empty deque" }
         val bit = getBitAt(startBitIndex)
         startBitIndex = (startBitIndex + 1) % capacityInBits
+        bitCount--
         return bit
     }
 
@@ -108,7 +113,7 @@ class MutableBitDeque : BitSequence {
         require(n in 0..64) {
             "removeFirst(n): n must be within [0..64], got $n"
         }
-        check(bitSize() >= n) { "Not enough bits to remove. size=$size, requested=$n" }
+        check(bitCount >= n) { "Not enough bits to remove. size=$size, requested=$n" }
 
         var value = 0L
         when (order) {
@@ -128,9 +133,34 @@ class MutableBitDeque : BitSequence {
         return value
     }
 
+    fun addFirst(v: Boolean) {
+        ensureSpaceFor(1)
+        startBitIndex = (startBitIndex - 1 + capacityInBits) % capacityInBits
+        setBitAt(startBitIndex, v)
+        bitCount++
+    }
+
+    fun removeLast(): Boolean {
+        check(bitCount > 0) { "Cannot remove from empty deque" }
+        endBitIndex = (endBitIndex - 1 + capacityInBits) % capacityInBits
+        val bit = getBitAt(endBitIndex)
+        bitCount--
+        return bit
+    }
+
+    fun peekFirst(): Boolean {
+        check(bitCount > 0) { "Cannot peek from empty deque" }
+        return get(0)
+    }
+    fun peekLast(): Boolean {
+        check(bitCount > 0) { "Cannot peek from empty deque" }
+        val idx = (endBitIndex - 1 + capacityInBits) % capacityInBits
+        return getBitAt(idx)
+    }
+
     fun copy(): MutableBitDeque {
         val result = MutableBitDeque()
-        val sz = bitSize()
+        val sz = bitCount
         result.ensureSpaceFor(sz)
         for (i in 0 until sz) {
             val bit = getBitAt((startBitIndex + i) % capacityInBits)
@@ -138,6 +168,7 @@ class MutableBitDeque : BitSequence {
         }
         result.startBitIndex = 0
         result.endBitIndex = sz
+        result.bitCount = sz
         return result
     }
 
@@ -145,7 +176,7 @@ class MutableBitDeque : BitSequence {
 
     override fun hashCode(): Int {
         var h = 1
-        val sz = bitSize()
+        val sz = bitCount
         for (i in 0 until sz) {
             val bit = getBitAt((startBitIndex + i) % capacityInBits)
             h = 31 * h + (if (bit) 1 else 0)
@@ -166,7 +197,7 @@ class MutableBitDeque : BitSequence {
     override fun toString(): String {
         val sb = StringBuilder()
         sb.append("MutableBitDeque(\"")
-        val sz = bitSize()
+        val sz = bitCount
         for (i in 0 until sz) {
             sb.append(if (getBitAt((startBitIndex + i) % capacityInBits)) '1' else '0')
         }
@@ -175,14 +206,6 @@ class MutableBitDeque : BitSequence {
     }
 
     // ---------------------- Internal Helpers ---------------------- //
-
-    internal fun bitSize(): Int {
-        return if (endBitIndex >= startBitIndex) {
-            endBitIndex - startBitIndex
-        } else {
-            capacityInBits - (startBitIndex - endBitIndex)
-        }
-    }
 
     internal fun getBitAt(globalIndex: Int): Boolean {
         val arrIndex = globalIndex ushr 6  // /64
@@ -203,7 +226,7 @@ class MutableBitDeque : BitSequence {
     }
 
     internal fun ensureSpaceFor(n: Int) {
-        val sz = bitSize()
+        val sz = bitCount
         if (sz + n <= capacityInBits) return
 
         var newCapacityInLongs = backing.size
@@ -244,7 +267,7 @@ object MutableBitDequeSerializer : KSerializer<MutableBitDeque> {
     }
 
     override fun serialize(encoder: Encoder, value: MutableBitDeque) {
-        val sz = value.bitSize()
+        val sz = value.bitCount
         val byteCount = (sz + 7) / 8
         val arr = ByteArray(byteCount)
 
@@ -291,6 +314,7 @@ object MutableBitDequeSerializer : KSerializer<MutableBitDeque> {
         }
         result.startBitIndex = 0
         result.endBitIndex = bitCount
+        result.bitCount = bitCount
         return result
     }
 }

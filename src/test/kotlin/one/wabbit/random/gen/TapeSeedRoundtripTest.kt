@@ -1,5 +1,6 @@
 package one.wabbit.random.gen
 
+import one.wabbit.random.gen.util.MutableBitDeque
 import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals

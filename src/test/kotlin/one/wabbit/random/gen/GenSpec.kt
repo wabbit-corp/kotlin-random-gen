@@ -1,6 +1,8 @@
 package one.wabbit.random.gen
 
+import one.wabbit.random.gen.util.MutableBitDeque
 import java.util.*
+import kotlin.math.abs
 import kotlin.math.sqrt
 import kotlin.test.*
 
@@ -83,7 +85,7 @@ class GenSpec {
         // Check the uniform generator in [0,1]
         val N = 100_000
         var sum = 0.0
-        Gen.uniform().foreach(random, N) {
+        Gen.uniformDouble().foreach(random, N) {
             assertTrue(it in 0.0..1.0, "Double must be in [0,1]")
             sum += it
         }
@@ -134,19 +136,19 @@ class GenSpec {
     @Test
     fun testSequence() {
         // Generate a list of 3 integers in range(0..10)
-        val genList = Gen.sequence(listOf(Gen.int(0..10), Gen.int(0..10), Gen.int(0..10)))
+        val genList = Gen.zip(listOf(Gen.int(0..10), Gen.int(10..20), Gen.int(20..30)))
         genList.foreach(random, 100) {
             assertEquals(3, it.size)
-            it.forEach { x ->
-                assertTrue(x in 0..10)
-            }
+            assertTrue(it[0] in 0..10)
+            assertTrue(it[1] in 10..20)
+            assertTrue(it[2] in 20..30)
         }
     }
 
     @Test
     fun testRepeat() {
         // repeat(5, Gen.int(0..10)) => always 5 ints
-        val repeated = Gen.repeat(5, Gen.int(0..10))
+        val repeated = Gen.listOf(5, Gen.int(0..10))
         repeated.foreach(random, 100) {
             assertEquals(5, it.size)
             it.forEach { x -> assertTrue(x in 0..10) }
@@ -228,8 +230,8 @@ class GenSpec {
     @Test
     fun testReadN_EofCoverage() {
         // Force an artificially tiny tape so we always run out of bits
-        val bitInput = BitInput.of(Tape(TapeSeed(1234L, MutableBitDeque())), limit = 2)
-        val result = Gen.int(0..100).sampleR(bitInput)
+        val bitSource = BitSource.of(RawTapeReader(TapeSeed(1234L, MutableBitDeque())), limit = 2)
+        val result = Gen.int(0..100).sampleR(bitSource)
         // Because we want 32 bits for an int in the worst path, we only have 2 => Eof
         assertTrue(result is RunResult.Eof, "Should run out of bits quickly")
     }
@@ -268,7 +270,7 @@ class GenSpec {
         var caught = false
 
         try {
-            genStr.foreachMin(random, iters = 10000, minimizerSteps=100000) { s ->
+            genStr.foreachMin(random, iters = 1000000, minimizerSteps=1000000) { s ->
                 if (s.contains("abc")) {
                     throw IllegalStateException("We do not like 'abc'")
                 }
@@ -354,23 +356,24 @@ class GenSpec {
     // Other tests
     // -------------------------------------------------------------------------
 
-//    @Test
-//    fun testIntGenDistribution() {
-//        val N = 10000000
-//        for (M in listOf(3, 4, 5, 7, 11, 13, 16, 17)) {
-//            val random = SplittableRandom()
-//            val freq = IntArray(M) { 0 }
-//            val list = Gen.int(0..<M).foreach(random, N) { freq[it] += 1 }
-//            for (i in 0 until M) {
-//                val it = freq[i]
-//                val p = it.toDouble() / N
-//                val q = 1.0 / freq.size.toDouble()
-//                val npq = N * q * (1 - q)
-//                val s2 = sqrt(npq) / N
-//                val z = (it - N * q) / sqrt(N * q * (1 - q))
-//                println("p=$p+-${s2} (z=$z)")
-//            }
-//            println()
-//        }
-//    }
+    @Ignore("Slow") @Test
+    fun testIntGenDistribution() {
+        val N = 10000000
+        for (M in listOf(3, 4, 5, 7, 11, 13, 16, 17)) {
+            val random = SplittableRandom()
+            val freq = IntArray(M) { 0 }
+            val list = Gen.int(0..<M).foreach(random, N) { freq[it] += 1 }
+            for (i in 0 until M) {
+                val it = freq[i]
+                val p = it.toDouble() / N
+                val q = 1.0 / freq.size.toDouble()
+                val npq = N * q * (1 - q)
+                val s2 = sqrt(npq) / N
+                val z = (it - N * q) / sqrt(N * q * (1 - q))
+                assertTrue(abs(z) <= 5.0, "M=$M: freq[$i]=${freq[i]} gives z=$z (too large!)")
+                println("p=$p+-${s2} (z=$z)")
+            }
+            println()
+        }
+    }
 }

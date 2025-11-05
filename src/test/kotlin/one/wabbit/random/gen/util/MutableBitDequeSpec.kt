@@ -1,4 +1,4 @@
-package one.wabbit.random.gen
+package one.wabbit.random.gen.util
 
 import java.util.*
 import kotlin.math.min
@@ -6,6 +6,14 @@ import kotlin.test.*
 import kotlinx.serialization.json.Json
 
 class MutableBitDequeSpec {
+    @Test
+    fun `common deque issue`() {
+        val d = MutableBitDeque()
+        repeat(256) { d.add(true) }   // exactly fills backing
+        println(d.size)               // 0  <-- oops
+        d.removeFirst()               // throws: "Cannot remove from empty deque"
+    }
+
     @Test
     fun test() {
         val buf = MutableBitDeque()

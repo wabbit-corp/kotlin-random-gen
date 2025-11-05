@@ -1,7 +1,22 @@
 package one.wabbit.random.gen
 
 import one.wabbit.base58.Base58
+import one.wabbit.random.gen.util.BitSequence
+import one.wabbit.random.gen.util.MutableBitDeque
 
+/**
+ * [TapeSeed] encapsulates the seed and bit-flip sequence used to initialize a [RawTapeReader].
+ *
+ * The `seed` is a 64-bit integer that initializes a pseudorandom number generator (PRNG).
+ * The `flips` is a sequence of bits indicating which bits from the PRNG output should be flipped
+ * (XORed) to produce the final random bits used during generation.
+ *
+ * This combination allows for deterministic replay of random generation sequences,
+ * as well as controlled mutation of those sequences for testing purposes.
+ *
+ * You can serialize a [TapeSeed] to a compact Base58 string using [toBase58String],
+ * and deserialize it back using [fromBase58String].
+ */
 data class TapeSeed(val seed: Long, val flips: BitSequence) {
     // Convert to a single Base58 string:
     fun toBase58String(): String {
