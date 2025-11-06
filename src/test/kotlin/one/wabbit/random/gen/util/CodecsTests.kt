@@ -43,7 +43,7 @@ class CodecsTests {
         // Raw bit check: by design, readBool returns true for 0, so writeBool(true) must emit 0.
         assertEquals(2L, dq.size)
         assertTrue(dq[0L]) // first bit is 0 for true
-        assertFalse(dq[1L])  // second bit is 1 for false
+        assertFalse(dq[1L]) // second bit is 1 for false
 
         // Round-trip check
         assertEquals(true, Codecs.readBool(r))
@@ -64,13 +64,14 @@ class CodecsTests {
 
     @Test
     fun uintTBE_exhaustive_small_ranges() {
-        val ranges = listOf(
-            0u..0u,
-            0u..1u,          // m=2
-            0u..2u,          // m=3 (truly truncated)
-            5u..13u,         // m=9 (k=3, t= (16-9)=7)
-            123u..145u       // m=23
-        )
+        val ranges =
+            listOf(
+                0u..0u,
+                0u..1u, // m=2
+                0u..2u, // m=3 (truly truncated)
+                5u..13u, // m=9 (k=3, t= (16-9)=7)
+                123u..145u, // m=23
+            )
         for (range in ranges) {
             for (v in range) {
                 val (dq, r, w) = newRW()
@@ -80,7 +81,11 @@ class CodecsTests {
 
                 // Check code length is k or k+1 as per TBE theory
                 val expectedLen = tbeBitLength(range, v)
-                assertEquals(expectedLen.toLong(), dq.size, "Unexpected TBE length for $v in $range")
+                assertEquals(
+                    expectedLen.toLong(),
+                    dq.size,
+                    "Unexpected TBE length for $v in $range",
+                )
 
                 val v2 = Codecs.readUintTBE(range, r)
                 assertEquals(v, v2, "TBE round-trip failed for $v in $range")
@@ -185,9 +190,9 @@ class CodecsTests {
 
         // Full 32-bit range (raw bit identity)
         run {
-            val values = listOf(
-                Int.MIN_VALUE, -1, 0, 1, 123456789, Int.MAX_VALUE
-            ) + List(50) { Random(9).nextInt() }
+            val values =
+                listOf(Int.MIN_VALUE, -1, 0, 1, 123456789, Int.MAX_VALUE) +
+                    List(50) { Random(9).nextInt() }
             for (v in values) {
                 val (dq, r, w) = newRW()
                 Codecs.writeInt(v, Int.MIN_VALUE..Int.MAX_VALUE, w)
@@ -275,11 +280,11 @@ class CodecsTests {
         val (dq, r, w) = newRW()
 
         // Write a cocktail of values
-        Codecs.writeBool(true, w)                       // 1 bit (0)
-        Codecs.writeUint(42u, 0u..1000u, w)             // 10 bits
-        Codecs.writeUintTBE(9u, 0u..12u, w)             // 3 or 4 bits (TBE)
-        Codecs.writeInt(-12345, -20000..20000, w)       // variable
-        Codecs.writeDoubleU01(0.3141592653589793, 17, w)// 17 bits
+        Codecs.writeBool(true, w) // 1 bit (0)
+        Codecs.writeUint(42u, 0u..1000u, w) // 10 bits
+        Codecs.writeUintTBE(9u, 0u..12u, w) // 3 or 4 bits (TBE)
+        Codecs.writeInt(-12345, -20000..20000, w) // variable
+        Codecs.writeDoubleU01(0.3141592653589793, 17, w) // 17 bits
         Codecs.writeBytes(byteArrayOf(1, 2, 3, -4, 127), w) // 40 bits
 
         // Now read back in the same order
@@ -289,7 +294,7 @@ class CodecsTests {
         assertEquals(-12345, Codecs.readInt(-20000..20000, r))
         assertEquals(
             kotlin.math.floor(0.3141592653589793 * (1 shl 17)) / (1 shl 17).toDouble(),
-            Codecs.readDoubleU01(17, r)
+            Codecs.readDoubleU01(17, r),
         )
         assertContentEquals(byteArrayOf(1, 2, 3, -4, 127), Codecs.readBytes(5, r))
 
@@ -297,7 +302,8 @@ class CodecsTests {
         assertEquals(0L, dq.size)
     }
 
-    @Test fun roundtrip_random() {
+    @Test
+    fun roundtrip_random() {
         val rnd = Random(2024)
         val (dq, r, w) = newRW()
 
@@ -320,23 +326,26 @@ class CodecsTests {
             val f = rng.nextULong()
             return f..f
         }
-        val maxFirst = ULong.MAX_VALUE - (m - 1UL)   // largest first allowed so that first+(m-1) doesn’t wrap
+        val maxFirst =
+            ULong.MAX_VALUE - (m - 1UL) // largest first allowed so that first+(m-1) doesn’t wrap
         val first = rng.nextULong() % (maxFirst + 1UL)
-        val last = first + (m - 1UL)                 // guaranteed not to overflow
+        val last = first + (m - 1UL) // guaranteed not to overflow
         check(first <= last)
         return first..last
     }
 
-    @Test fun roundtrip_huge() {
+    @Test
+    fun roundtrip_huge() {
         val (dq, r, w) = newRW()
         val rng = Random(42)
-        val sizes = listOf(
-            1UL shl 63,            // 2^63
-            (1UL shl 63) + 17UL,   // > 2^63  ⇒ triggers L==64 path in reader
-            (1UL shl 63) - 3UL,    // just below 2^63
-            ULong.MAX_VALUE,       // 2^64 - 1
-            ULong.MAX_VALUE - 1UL  // 2^64 - 2
-        )
+        val sizes =
+            listOf(
+                1UL shl 63, // 2^63
+                (1UL shl 63) + 17UL, // > 2^63  ⇒ triggers L==64 path in reader
+                (1UL shl 63) - 3UL, // just below 2^63
+                ULong.MAX_VALUE, // 2^64 - 1
+                ULong.MAX_VALUE - 1UL, // 2^64 - 2
+            )
 
         for (m in sizes) {
             val range = safeRangeOfSize(m, rng)
@@ -350,9 +359,10 @@ class CodecsTests {
         }
     }
 
-    @Test fun roundtrip_full_width() {
+    @Test
+    fun roundtrip_full_width() {
         val (dq, r, w) = newRW()
-        val range = 0UL..ULong.MAX_VALUE  // special-cased by both read/write
+        val range = 0UL..ULong.MAX_VALUE // special-cased by both read/write
         val value = 0xDEADBEEFCAFEBABEUL
         Codecs.writeULong(value, range, w)
         val got = Codecs.readULong(range, r)
@@ -360,7 +370,8 @@ class CodecsTests {
         assertEquals(0L, dq.size)
     }
 
-    @Test fun roundtrip_random_large() {
+    @Test
+    fun roundtrip_random_large() {
         val (dq, r, w) = newRW()
         val rng = Random(7)
         repeat(10_000) {

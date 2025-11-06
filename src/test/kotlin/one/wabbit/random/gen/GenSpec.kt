@@ -1,10 +1,16 @@
 package one.wabbit.random.gen
 
-import one.wabbit.random.gen.util.MutableBitDeque
-import java.util.*
+import java.util.SplittableRandom
 import kotlin.math.abs
 import kotlin.math.sqrt
-import kotlin.test.*
+import kotlin.test.Ignore
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
+import kotlin.test.assertTrue
+import kotlin.test.fail
+import one.wabbit.random.gen.util.MutableBitDeque
 
 class GenSpec {
     // We’ll reuse this random across many tests (or create new ones as needed).
@@ -30,7 +36,7 @@ class GenSpec {
                 // Tolerate e.g. ± 5% of expected. (You can refine this)
                 assertTrue(
                     p in expected * 0.95..expected * 1.05,
-                    "Expected freq around $expected, got $p in M=$M"
+                    "Expected freq around $expected, got $p in M=$M",
                 )
             }
         }
@@ -73,11 +79,12 @@ class GenSpec {
         var trueCount = 0
         var falseCount = 0
 
-        Gen.bool.foreach(random, N) {
-            if (it) trueCount++ else falseCount++
-        }
+        Gen.bool.foreach(random, N) { if (it) trueCount++ else falseCount++ }
         val trueRatio = trueCount.toDouble() / N
-        assertTrue(trueRatio in 0.48..0.52, "Boolean distribution should be close to 50/50, got $trueRatio")
+        assertTrue(
+            trueRatio in 0.48..0.52,
+            "Boolean distribution should be close to 50/50, got $trueRatio",
+        )
     }
 
     @Test
@@ -102,9 +109,7 @@ class GenSpec {
     @Test
     fun testMapFlatMap() {
         // Generate pairs of ints, map them, then ensure it matches an expected transformation
-        val genPair = Gen.int(0..10).flatMap { x ->
-            Gen.int(0..10).map { y -> x to y }
-        }
+        val genPair = Gen.int(0..10).flatMap { x -> Gen.int(0..10).map { y -> x to y } }
         genPair.foreach(random, 100) { (x, y) ->
             assertTrue(x in 0..10, "x in range")
             assertTrue(y in 0..10, "y in range")
@@ -158,23 +163,24 @@ class GenSpec {
     @Test
     fun testRecursive() {
         // For coverage. A naive example: a recursively-defined Gen of small-int lists
-        val genRecursive = Gen.recursive<List<Int>> { self ->
-            Gen.bool.flatMap { branch ->
-                if (!branch) {
-                    // Base
-                    Gen.const(emptyList())
-                } else {
-                    // Rec step
-                    Gen.int(0..5).flatMap { head ->
-                        self.map { tail -> listOf(head) + tail }
+        val genRecursive =
+            Gen.recursive<List<Int>> { self ->
+                Gen.bool.flatMap { branch ->
+                    if (!branch) {
+                        // Base
+                        Gen.const(emptyList())
+                    } else {
+                        // Rec step
+                        Gen.int(0..5).flatMap { head -> self.map { tail -> listOf(head) + tail } }
                     }
                 }
             }
-        }
         // Just test we can run it
         genRecursive.foreach(random, 100) {
             // Some checks
-            assertTrue(it.size <= 1000) // Should never blow up with default depth of short random runs
+            assertTrue(
+                it.size <= 1000
+            ) // Should never blow up with default depth of short random runs
         }
     }
 
@@ -189,9 +195,7 @@ class GenSpec {
         val gen = Gen.oneOf(choices)
         val counts = mutableMapOf("A" to 0, "B" to 0, "C" to 0)
         val N = 10_000
-        gen.foreach(random, N) {
-            counts[it] = counts[it]!! + 1
-        }
+        gen.foreach(random, N) { counts[it] = counts[it]!! + 1 }
         // All should appear
         assertTrue(counts.values.all { it > 0 }, "All items must appear in 10k tries")
     }
@@ -203,9 +207,7 @@ class GenSpec {
         val N = 10_000
         var countA = 0
         var countB = 0
-        freqGen.foreach(random, N) {
-            if (it == "A") countA++ else countB++
-        }
+        freqGen.foreach(random, N) { if (it == "A") countA++ else countB++ }
         val ratio = countA.toDouble() / countB
         // Should be close to 2.0
         assertTrue(ratio in 1.8..2.2, "Expected ratio near 2.0, got $ratio")
@@ -243,7 +245,8 @@ class GenSpec {
     @Test
     fun testMinimize_FindsSmallerValue() {
         // Suppose we want to find a number divisible by 17 in [0..999].
-        // Then we minimize. The minimal number that satisfies % 17 == 0 is 0, but let's see if we can find it.
+        // Then we minimize. The minimal number that satisfies % 17 == 0 is 0, but let's see if we
+        // can find it.
 
         val gen = Gen.int(0..<1000)
         // Step 1: find *some* solution
@@ -257,7 +260,11 @@ class GenSpec {
         assertNotNull(minimized, "Should succeed in minimizing")
 
         // The result should be 0 or 17 or some multiple, but 0 is the actual minimal
-        assertEquals(0, minimized.result, "Minimizer should find 0 as minimal solution for x % 17 == 0 in [0..999]")
+        assertEquals(
+            0,
+            minimized.result,
+            "Minimizer should find 0 as minimal solution for x % 17 == 0 in [0..999]",
+        )
     }
 
     @Test
@@ -270,7 +277,7 @@ class GenSpec {
         var caught = false
 
         try {
-            genStr.foreachMin(random, iters = 1000000, minimizerSteps=1000000) { s ->
+            genStr.foreachMin(random, iters = 1000000, minimizerSteps = 1000000) { s ->
                 if (s.contains("abc")) {
                     throw IllegalStateException("We do not like 'abc'")
                 }
@@ -306,28 +313,32 @@ class GenSpec {
         var nullCount = 0
         var nonNullCount = 0
         val N = 1000
-        Gen.foreach(nullableInt, N) {
-            if (it == -1) nullCount++ else nonNullCount++
-        }
+        Gen.foreach(nullableInt, N) { if (it == -1) nullCount++ else nonNullCount++ }
         // Should generate both null and non-null
-        assertTrue(nullCount in 1..(N-1), "Must produce some null and some non-null. nullCount=$nullCount")
-        assertTrue(nonNullCount in 1..(N-1), "Must produce some null and some non-null. nonNullCount=$nonNullCount")
+        assertTrue(
+            nullCount in 1..(N - 1),
+            "Must produce some null and some non-null. nullCount=$nullCount",
+        )
+        assertTrue(
+            nonNullCount in 1..(N - 1),
+            "Must produce some null and some non-null. nonNullCount=$nonNullCount",
+        )
     }
 
     @Test
     fun testDelay() {
         // For coverage: Gen.delay { ... }. Ensure the function is only evaluated lazily.
         var calls = 0
-        val delayed = Gen.delay {
-            calls++
-            Gen.int(0..10)
-        }
+        val delayed =
+            Gen.delay {
+                calls++
+                Gen.int(0..10)
+            }
         // Check we can sample from it without error
-        repeat(100) {
-            delayed.sample(random)
-        }
+        repeat(100) { delayed.sample(random) }
         // At least we know it was evaluated at some point.
-        // 100 calls to sample => might call the thunk 100 times or fewer, depending on short-circuits.
+        // 100 calls to sample => might call the thunk 100 times or fewer, depending on
+        // short-circuits.
         assertTrue(calls > 0, "Gen.delay was invoked lazily")
     }
 
@@ -337,16 +348,11 @@ class GenSpec {
 
     @Test
     fun testFreqGen() {
-        val weightedGen = Gen.freqGen(
-            5 to Gen.const("HighWeight"),
-            1 to Gen.const("LowWeight")
-        )
+        val weightedGen = Gen.freqGen(5 to Gen.const("HighWeight"), 1 to Gen.const("LowWeight"))
         var highCount = 0
         var lowCount = 0
         val N = 10_000
-        weightedGen.foreach(random, N) {
-            if (it == "HighWeight") highCount++ else lowCount++
-        }
+        weightedGen.foreach(random, N) { if (it == "HighWeight") highCount++ else lowCount++ }
         val ratio = highCount.toDouble() / lowCount
         // We expect ~5 to 1 ratio
         assertTrue(ratio in 4.0..6.0, "Expected ratio near 5.0, got $ratio")
@@ -356,7 +362,8 @@ class GenSpec {
     // Other tests
     // -------------------------------------------------------------------------
 
-    @Ignore("Slow") @Test
+    @Ignore("Slow")
+    @Test
     fun testIntGenDistribution() {
         val N = 10000000
         for (M in listOf(3, 4, 5, 7, 11, 13, 16, 17)) {
@@ -371,7 +378,7 @@ class GenSpec {
                 val s2 = sqrt(npq) / N
                 val z = (it - N * q) / sqrt(N * q * (1 - q))
                 assertTrue(abs(z) <= 5.0, "M=$M: freq[$i]=${freq[i]} gives z=$z (too large!)")
-                println("p=$p+-${s2} (z=$z)")
+                println("p=$p+-$s2 (z=$z)")
             }
             println()
         }

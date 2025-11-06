@@ -14,18 +14,18 @@ enum class ExceptionComparisonMode {
     SAME_CLASS_MESSAGE_TOP_FRAME,
 
     /** Check classes + messages + *entire* stack trace. */
-    SAME_CLASS_MESSAGE_FULL_STACK
+    SAME_CLASS_MESSAGE_FULL_STACK,
 }
 
 /**
- * Returns true if [e1] is considered the "same" exception as [e2].
- * By default, it checks the exact class type, message equality, and top stack frame
- * (including line number). You can adjust the comparison mode as needed.
+ * Returns true if [e1] is considered the "same" exception as [e2]. By default, it checks the exact
+ * class type, message equality, and top stack frame (including line number). You can adjust the
+ * comparison mode as needed.
  */
 fun compareExceptions(
     e1: Throwable,
     e2: Throwable,
-    mode: ExceptionComparisonMode = ExceptionComparisonMode.SAME_CLASS_MESSAGE_TOP_FRAME
+    mode: ExceptionComparisonMode = ExceptionComparisonMode.SAME_CLASS_MESSAGE_TOP_FRAME,
 ): Boolean {
     // 1) Compare types
     if (e1.javaClass != e2.javaClass) return false
@@ -52,9 +52,12 @@ fun compareExceptions(
         if (st1[0].methodName != st2[0].methodName) return false
 
         // If we also want exact line match:
-        if (mode == ExceptionComparisonMode.SAME_CLASS_MESSAGE_TOP_FRAME &&
-            st1[0].lineNumber != st2[0].lineNumber
-        ) return false
+        if (
+            mode == ExceptionComparisonMode.SAME_CLASS_MESSAGE_TOP_FRAME &&
+                st1[0].lineNumber != st2[0].lineNumber
+        ) {
+            return false
+        }
 
         // If we want full stack:
         if (mode == ExceptionComparisonMode.SAME_CLASS_MESSAGE_FULL_STACK) {

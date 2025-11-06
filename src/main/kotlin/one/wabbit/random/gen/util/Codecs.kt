@@ -1,8 +1,6 @@
 package one.wabbit.random.gen.util
 
-import kotlin.math.ceil
 import kotlin.math.floor
-import kotlin.math.log2
 import kotlin.math.max
 import kotlin.math.min
 
@@ -32,7 +30,7 @@ object Codecs {
 
     fun readUintTBE(range: UIntRange, bits: ReadBits): UInt? {
         val first = range.first
-        val last  = range.last
+        val last = range.last
         require(first <= last)
         if (first == last) return first
 
@@ -46,27 +44,27 @@ object Codecs {
         // always < 2^k
         val u = bits.read(k)?.toUInt() ?: return null
         return if (u < t) {
-            first + u                              // k-bit code
+            first + u // k-bit code
         } else {
             val extra = bits.read(1)?.toUInt() ?: return null
-            first + ((u shl 1) + extra - t)        // (k+1)-bit code
+            first + ((u shl 1) + extra - t) // (k+1)-bit code
         }
     }
 
     /** Inverse of readUintTBE: emit the canonical TBE code for [value] in [range]. */
     fun writeUintTBE(value: UInt, range: UIntRange, bits: WriteBits) {
         val first = range.first
-        val last  = range.last
+        val last = range.last
         require(first <= last)
         require(value in range)
         if (first == last) return
 
         val m = last - first + 1u
-        val k = 31 - m.countLeadingZeroBits()   // floor(log2(m))
+        val k = 31 - m.countLeadingZeroBits() // floor(log2(m))
         val twoK = 1u shl k
-        val t = (twoK shl 1) - m                // 2^(k+1) - m
+        val t = (twoK shl 1) - m // 2^(k+1) - m
 
-        val d = value - first                   // 0 .. m-1
+        val d = value - first // 0 .. m-1
 
         if (d < t) {
             // k-bit code
@@ -82,10 +80,10 @@ object Codecs {
     }
 
     fun readUint(range: UIntRange, bits: ReadBits): UInt? =
-        readULong(range.first.toULong() .. range.last.toULong(), bits)?.toUInt()
+        readULong(range.first.toULong()..range.last.toULong(), bits)?.toUInt()
 
     fun writeUint(value: UInt, range: UIntRange, bits: WriteBits) =
-        writeULong(value.toULong(), range.first.toULong() .. range.last.toULong(), bits)
+        writeULong(value.toULong(), range.first.toULong()..range.last.toULong(), bits)
 
     private fun ceilLog2ULong(x: ULong): Int {
         require(x > 0UL)
@@ -125,14 +123,14 @@ object Codecs {
         }
 
         // Leftover region after the first L bits:
-        var n: ULong = if (L == 64) 0UL - m else (1UL shl L) - m  // b = 2^L - m
-        var x: ULong = r - m                                      // 0 <= x < n
+        var n: ULong = if (L == 64) 0UL - m else (1UL shl L) - m // b = 2^L - m
+        var x: ULong = r - m // 0 <= x < n
 
         // Invariant: 0 < n < m, 0 <= x < n
         while (true) {
             // Smallest k0 with (n << k0) >= m, computed without overflow
-            val q: ULong = (m - 1UL) / n + 1UL       // == ceil(m / n)
-            val k0: Int = ceilLog2ULong(q)           // in 1..63 (since q <= 2^63)
+            val q: ULong = (m - 1UL) / n + 1UL // == ceil(m / n)
+            val k0: Int = ceilLog2ULong(q) // in 1..63 (since q <= 2^63)
             val p = bits.read(k0) ?: return null
 
             n = n shl k0
@@ -151,8 +149,8 @@ object Codecs {
     }
 
     /**
-     * Inverse of readUint. For non power-of-two [m], the canonical code the reader
-     * accepts immediately is the fixed-length binary of (value - first) using L = ceil(log2(m)) bits.
+     * Inverse of readUint. For non power-of-two [m], the canonical code the reader accepts
+     * immediately is the fixed-length binary of (value - first) using L = ceil(log2(m)) bits.
      */
     fun writeULong(value: ULong, range: ULongRange, bits: WriteBits) {
         val first = range.first
@@ -182,7 +180,8 @@ object Codecs {
     }
 
     fun readInt(range: IntRange, read: ReadBits): Int? {
-        val first = range.first; val last = range.last
+        val first = range.first
+        val last = range.last
         require(first <= last)
         if (first == last) return first
 
@@ -191,13 +190,14 @@ object Codecs {
             return read.read(32)?.toUInt()?.toInt()
         }
         val m = (last - first + 1)
-        val u = readUint(0u .. (m - 1).toUInt(), read)?.toInt() ?: return null
+        val u = readUint(0u..(m - 1).toUInt(), read)?.toInt() ?: return null
         return first + u
     }
 
     /** Inverse of readInt. */
     fun writeInt(value: Int, range: IntRange, bits: WriteBits) {
-        val first = range.first; val last = range.last
+        val first = range.first
+        val last = range.last
         require(first <= last)
         require(value in range)
         if (first == last) return
@@ -210,7 +210,7 @@ object Codecs {
 
         val m = (last.toLong() - first.toLong() + 1L).toUInt() // avoid Int overflow
         val d = (value - first).toUInt()
-        writeUint(d, 0u .. (m - 1u), bits)
+        writeUint(d, 0u..(m - 1u), bits)
     }
 
     fun readDoubleU01(bits: Int, read: ReadBits): Double? {
@@ -230,9 +230,7 @@ object Codecs {
 
     fun readBytes(length: Int, read: ReadBits): ByteArray? {
         require(length >= 0)
-        return ByteArray(length) {
-            read.read(8)?.toLong()?.toByte() ?: return null
-        }
+        return ByteArray(length) { read.read(8)?.toLong()?.toByte() ?: return null }
     }
 
     fun writeBytes(value: ByteArray, write: WriteBits) {

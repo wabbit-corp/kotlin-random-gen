@@ -1,17 +1,22 @@
 package one.wabbit.random.gen.util
 
-import java.util.*
+import java.util.SplittableRandom
 import kotlin.math.min
-import kotlin.test.*
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
+import kotlin.test.assertNotEquals
+import kotlin.test.assertTrue
 import kotlinx.serialization.json.Json
 
 class MutableBitDequeSpec {
     @Test
     fun `common deque issue`() {
         val d = MutableBitDeque()
-        repeat(256) { d.add(true) }   // exactly fills backing
-        println(d.size)               // 0  <-- oops
-        d.removeFirst()               // throws: "Cannot remove from empty deque"
+        repeat(256) { d.add(true) } // exactly fills backing
+        println(d.size) // 0  <-- oops
+        d.removeFirst() // throws: "Cannot remove from empty deque"
     }
 
     @Test
@@ -31,22 +36,18 @@ class MutableBitDequeSpec {
         assertEquals(15, buf.removeFirst(6, BitOrder.MSB_FIRST))
     }
 
-    private fun randomBoolean(rng: SplittableRandom): Boolean =
-        rng.nextBoolean()
+    private fun randomBoolean(rng: SplittableRandom): Boolean = rng.nextBoolean()
 
     private fun randomByte(rng: SplittableRandom): Byte =
         rng.nextInt(Byte.MIN_VALUE.toInt(), Byte.MAX_VALUE.toInt() + 1).toByte()
 
-    private fun randomLong(rng: SplittableRandom): Long =
-        rng.nextLong()
+    private fun randomLong(rng: SplittableRandom): Long = rng.nextLong()
 
-    /**
-     * Verify contents of [actual] vs [reference].
-     */
+    /** Verify contents of [actual] vs [reference]. */
     private fun assertBitDequeEquals(
         actual: MutableBitDeque,
         reference: ReferenceBitDeque,
-        message: String = ""
+        message: String = "",
     ) {
         assertEquals(reference.size, actual.size, "Size mismatch. $message")
         for (i in 0 until reference.size) {
@@ -54,9 +55,7 @@ class MutableBitDequeSpec {
         }
     }
 
-    /**
-     * Basic test with a few known operations (like your original).
-     */
+    /** Basic test with a few known operations (like your original). */
     @Test
     fun testBasicOperations() {
         val buf = MutableBitDeque()
@@ -82,9 +81,7 @@ class MutableBitDequeSpec {
         assertEquals(0L, buf.size)
     }
 
-    /**
-     * Test round-trip of a random Byte for both bit orders.
-     */
+    /** Test round-trip of a random Byte for both bit orders. */
     @Test
     fun testRoundTripByte() {
         val trials = 10_000
@@ -101,9 +98,7 @@ class MutableBitDequeSpec {
         }
     }
 
-    /**
-     * Test round-trip of a random Long for both bit orders.
-     */
+    /** Test round-trip of a random Long for both bit orders. */
     @Test
     fun testRoundTripLong() {
         val trials = 5_000
@@ -121,8 +116,8 @@ class MutableBitDequeSpec {
     }
 
     /**
-     * A big randomized test that does many operations in sequence:
-     * add, removeFirst, fillAndSet, set(index), addAll(byte/long).
+     * A big randomized test that does many operations in sequence: add, removeFirst, fillAndSet,
+     * set(index), addAll(byte/long).
      */
     @Test
     fun testRandomOperationsSequence() {
@@ -169,7 +164,8 @@ class MutableBitDequeSpec {
                     // removeFirst(n, order)
                     if (ref.size > 0) {
                         val n = rng.nextInt(1, min(ref.size.toInt(), 16) + 1)
-                        val order = if (rng.nextBoolean()) BitOrder.MSB_FIRST else BitOrder.LSB_FIRST
+                        val order =
+                            if (rng.nextBoolean()) BitOrder.MSB_FIRST else BitOrder.LSB_FIRST
                         val expected = ref.removeFirst(n, order)
                         val actual = deque.removeFirst(n, order)
                         assertEquals(expected, actual, "removeFirst($n, $order) mismatch")
@@ -179,26 +175,30 @@ class MutableBitDequeSpec {
                     // addAll(byte or long)
                     if (rng.nextBoolean()) {
                         val b = randomByte(rng)
-                        val order = if (rng.nextBoolean()) BitOrder.MSB_FIRST else BitOrder.LSB_FIRST
+                        val order =
+                            if (rng.nextBoolean()) BitOrder.MSB_FIRST else BitOrder.LSB_FIRST
                         deque.addAll(b, order)
                         // emulate in ref
                         for (i in 0 until 8) {
-                            val bit = when (order) {
-                                BitOrder.MSB_FIRST -> (b.toInt() and (1 shl (7 - i))) != 0
-                                BitOrder.LSB_FIRST -> (b.toInt() and (1 shl i)) != 0
-                            }
+                            val bit =
+                                when (order) {
+                                    BitOrder.MSB_FIRST -> (b.toInt() and (1 shl (7 - i))) != 0
+                                    BitOrder.LSB_FIRST -> (b.toInt() and (1 shl i)) != 0
+                                }
                             ref.add(bit)
                         }
                     } else {
                         val v = randomLong(rng)
-                        val order = if (rng.nextBoolean()) BitOrder.MSB_FIRST else BitOrder.LSB_FIRST
+                        val order =
+                            if (rng.nextBoolean()) BitOrder.MSB_FIRST else BitOrder.LSB_FIRST
                         deque.addAll(v, order)
                         // emulate in ref
                         for (i in 0 until 64) {
-                            val bit = when (order) {
-                                BitOrder.MSB_FIRST -> (v and (1L shl (63 - i))) != 0L
-                                BitOrder.LSB_FIRST -> (v and (1L shl i)) != 0L
-                            }
+                            val bit =
+                                when (order) {
+                                    BitOrder.MSB_FIRST -> (v and (1L shl (63 - i))) != 0L
+                                    BitOrder.LSB_FIRST -> (v and (1L shl i)) != 0L
+                                }
                             ref.add(bit)
                         }
                     }
@@ -213,9 +213,7 @@ class MutableBitDequeSpec {
         assertBitDequeEquals(deque, ref, "Final check after $trials operations")
     }
 
-    /**
-     * Test copy() and structural equality & hashCode in random scenarios.
-     */
+    /** Test copy() and structural equality & hashCode in random scenarios. */
     @Test
     fun testCopyEqualsAndHashCode() {
         val rng = SplittableRandom(987654321)
@@ -224,9 +222,7 @@ class MutableBitDequeSpec {
             val deque = MutableBitDeque()
             // fill with random bits
             val length = rng.nextInt(50)
-            repeat(length) {
-                deque.add(randomBoolean(rng))
-            }
+            repeat(length) { deque.add(randomBoolean(rng)) }
             val copy = deque.copy()
 
             // copy must equal the original
@@ -244,24 +240,20 @@ class MutableBitDequeSpec {
 
     /**
      * Test boundary conditions:
-     *  - removeFirst from an empty deque
-     *  - fillAndSet with index = 0
-     *  - fillAndSet with index > size
-     *  - get / set out-of-range (expected to throw IndexOutOfBoundsException)
+     * - removeFirst from an empty deque
+     * - fillAndSet with index = 0
+     * - fillAndSet with index > size
+     * - get / set out-of-range (expected to throw IndexOutOfBoundsException)
      */
     @Test
     fun testBoundaryConditions() {
         val dq = MutableBitDeque()
 
         // removing a single bit from empty should throw NoSuchElementException
-        assertFailsWith<IllegalStateException> {
-            dq.removeFirst()
-        }
+        assertFailsWith<IllegalStateException> { dq.removeFirst() }
 
         // removing multiple bits from empty should also fail
-        assertFailsWith<IllegalStateException> {
-            dq.removeFirst(5, BitOrder.MSB_FIRST)
-        }
+        assertFailsWith<IllegalStateException> { dq.removeFirst(5, BitOrder.MSB_FIRST) }
 
         // fillAndSet index = 0 => should directly add one bit at position 0
         dq.fillAndSet(0, true)
@@ -283,14 +275,12 @@ class MutableBitDequeSpec {
         }
 
         // set out-of-range => should throw
-        assertFailsWith<IllegalArgumentException> {
-            dq[50] = false
-        }
+        assertFailsWith<IllegalArgumentException> { dq[50] = false }
     }
 
     /**
-     * Verify equals() with something that's not a MutableBitDeque.
-     * Also verify a brand-new empty deque doesn't equal a non-empty one.
+     * Verify equals() with something that's not a MutableBitDeque. Also verify a brand-new empty
+     * deque doesn't equal a non-empty one.
      */
     @Test
     fun testEqualsWithOtherTypes() {
@@ -313,9 +303,7 @@ class MutableBitDequeSpec {
         assertEquals(empty2, empty3)
     }
 
-    /**
-     * Test that length == size in all cases (they're synonyms here).
-     */
+    /** Test that length == size in all cases (they're synonyms here). */
     @Test
     fun testLengthAndSize() {
         val dq = MutableBitDeque()
@@ -335,9 +323,7 @@ class MutableBitDequeSpec {
         assertEquals(5L, dq.length)
     }
 
-    /**
-     * Quick test of toString() on various sizes.
-     */
+    /** Quick test of toString() on various sizes. */
     @Test
     fun testToStringVariousSizes() {
         val dq = MutableBitDeque()
@@ -377,19 +363,11 @@ class MutableBitDequeSpec {
         val refByte = (refVal and 0xFF).toByte()
         val optByte = (optVal and 0xFF).toByte()
 
-        assertEquals(
-            b, refByte,
-            "Reference mismatch: expected byte=$b, got $refByte, order=$order"
-        )
-        assertEquals(
-            b, optByte,
-            "Optimized mismatch: expected byte=$b, got $optByte, order=$order"
-        )
+        assertEquals(b, refByte, "Reference mismatch: expected byte=$b, got $refByte, order=$order")
+        assertEquals(b, optByte, "Optimized mismatch: expected byte=$b, got $optByte, order=$order")
     }
 
-    /**
-     * Remove 0 bits from an empty or non-empty deque. Should return 0L, do nothing.
-     */
+    /** Remove 0 bits from an empty or non-empty deque. Should return 0L, do nothing. */
     @Test
     fun testRemoveFirstZero() {
         val dq = MutableBitDeque()
@@ -406,9 +384,7 @@ class MutableBitDequeSpec {
         assertEquals(8L, dq.size)
     }
 
-    /**
-     * fillAndSet(0, true) on empty => we get 1 bit set.
-     */
+    /** fillAndSet(0, true) on empty => we get 1 bit set. */
     @Test
     fun testFillAndSetZeroIndexOnEmpty() {
         val dq = MutableBitDeque()
@@ -417,14 +393,12 @@ class MutableBitDequeSpec {
         assertTrue(dq[0])
     }
 
-    /**
-     * fillAndSet(size, value) => appends exactly one bit.
-     */
+    /** fillAndSet(size, value) => appends exactly one bit. */
     @Test
     fun testFillAndSetSize() {
         val dq = MutableBitDeque()
-        dq.add(false)  // size=1
-        dq.add(true)   // size=2
+        dq.add(false) // size=1
+        dq.add(true) // size=2
         assertEquals(2L, dq.size)
 
         // fillAndSet(2, true) => we want an extra bit at index=2
@@ -436,8 +410,8 @@ class MutableBitDequeSpec {
     }
 
     /**
-     * Large expansions: fillAndSet with big index => ensures capacity grows.
-     * We'll not go too extreme, but enough to confirm expansions.
+     * Large expansions: fillAndSet with big index => ensures capacity grows. We'll not go too
+     * extreme, but enough to confirm expansions.
      */
     @Test
     fun testFillAndSetLargeIndex() {
@@ -452,8 +426,8 @@ class MutableBitDequeSpec {
     }
 
     /**
-     * Quick check that removing 0 from a partially-filled buffer also works.
-     * (Non-empty scenario, remove 0 => no change).
+     * Quick check that removing 0 from a partially-filled buffer also works. (Non-empty scenario,
+     * remove 0 => no change).
      */
     @Test
     fun testRemoveFirstZeroNonEmpty() {
@@ -466,8 +440,8 @@ class MutableBitDequeSpec {
     }
 
     /**
-     * Optional: check custom serialization using kotlinx.serialization (KMP-friendly).
-     * We'll ensure the bits match after round-trip.
+     * Optional: check custom serialization using kotlinx.serialization (KMP-friendly). We'll ensure
+     * the bits match after round-trip.
      */
     @Test
     fun testSerializationRoundTrip() {

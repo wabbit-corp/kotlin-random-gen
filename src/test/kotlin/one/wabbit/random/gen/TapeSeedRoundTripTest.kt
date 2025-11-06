@@ -1,9 +1,9 @@
 package one.wabbit.random.gen
 
-import one.wabbit.random.gen.util.MutableBitDeque
 import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import one.wabbit.random.gen.util.MutableBitDeque
 
 class TapeSeedRoundTripTest {
     @Test
@@ -19,9 +19,7 @@ class TapeSeedRoundTripTest {
             // If your BitSequence is constructed differently,
             // adapt the code to fill it with random bits.
             val randomFlips = MutableBitDeque()
-            repeat(bitCount) {
-                randomFlips.add(Random.nextBoolean())
-            }
+            repeat(bitCount) { randomFlips.add(Random.nextBoolean()) }
 
             // Create the TapeSeed
             val original = TapeSeed(randomSeed, randomFlips)
@@ -40,11 +38,7 @@ class TapeSeedRoundTripTest {
 
             // Verify each bit
             for (i in 0 until original.flips.size) {
-                assertEquals(
-                    original.flips[i],
-                    decoded.flips[i],
-                    "Flip bit mismatch at index $i"
-                )
+                assertEquals(original.flips[i], decoded.flips[i], "Flip bit mismatch at index $i")
             }
         }
     }

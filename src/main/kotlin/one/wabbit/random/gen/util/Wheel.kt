@@ -28,8 +28,7 @@ data class Wheel<A>(val size: Int, val weights: ULongArray?, val item: (ULong) -
         error("unreachable")
     }
 
-    fun <B> map(f: (A) -> B): Wheel<B> =
-        Wheel(size, weights) { a -> f(item(a)) }
+    fun <B> map(f: (A) -> B): Wheel<B> = Wheel(size, weights) { a -> f(item(a)) }
 
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
@@ -71,9 +70,10 @@ data class Wheel<A>(val size: Int, val weights: ULongArray?, val item: (ULong) -
         fun <A> weighted(options: List<Pair<ULong, A>>): Wheel<A> {
             require(options.isNotEmpty())
             require(options.all { it.first > 0UL })
-            return Wheel(options.size, options.map { it.first }.toULongArray()) { i -> options[i.toInt()].second }
+            return Wheel(options.size, options.map { it.first }.toULongArray()) { i ->
+                options[i.toInt()].second
+            }
         }
-
 
         @JvmName("intWeighted")
         fun <A> weighted(options: List<Pair<Int, A>>): Wheel<A> {
@@ -81,12 +81,13 @@ data class Wheel<A>(val size: Int, val weights: ULongArray?, val item: (ULong) -
             require(options.all { it.first >= 0 })
             val total = options.sumOf { it.first }
             require(total > 0)
-            return Wheel(options.size, options.map { it.first.toULong() }.toULongArray()) { i -> options[i.toInt()].second }
+            return Wheel(options.size, options.map { it.first.toULong() }.toULongArray()) { i ->
+                options[i.toInt()].second
+            }
         }
 
         @JvmName("intWeighted")
-        fun <A> weighted(vararg options: Pair<Int, A>): Wheel<A> =
-            weighted(options.toList())
+        fun <A> weighted(vararg options: Pair<Int, A>): Wheel<A> = weighted(options.toList())
 
         @JvmName("doubleWeighted")
         fun <A> weighted(options: List<Pair<Double, A>>): Wheel<A> {
@@ -94,18 +95,19 @@ data class Wheel<A>(val size: Int, val weights: ULongArray?, val item: (ULong) -
             require(options.all { it.first >= 0.0 })
             val total = options.sumOf { it.first }
             require(total > 0.0)
-            val scaled = options.map { (w, _) -> (w / total * Long.MAX_VALUE).roundToLong().toULong() }
+            val scaled =
+                options.map { (w, _) -> (w / total * Long.MAX_VALUE).roundToLong().toULong() }
             val values = options.map { it.second }
-            val adjusted = if (scaled.sum() == 0UL) {
-                ULongArray(scaled.size) { 1UL }
-            } else {
-                scaled.toULongArray()
-            }
+            val adjusted =
+                if (scaled.sum() == 0UL) {
+                    ULongArray(scaled.size) { 1UL }
+                } else {
+                    scaled.toULongArray()
+                }
             return Wheel(options.size, adjusted, { i -> values[i.toInt()] })
         }
 
         @JvmName("doubleWeighted")
-        fun <A> weighted(vararg options: Pair<Double, A>): Wheel<A> =
-            weighted(options.toList())
+        fun <A> weighted(vararg options: Pair<Double, A>): Wheel<A> = weighted(options.toList())
     }
 }

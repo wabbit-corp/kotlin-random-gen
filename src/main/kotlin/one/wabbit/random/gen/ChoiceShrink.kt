@@ -1,16 +1,16 @@
-//package one.wabbit.random.gen
+// package one.wabbit.random.gen
 //
-//import one.wabbit.random.gen.util.ExceptionComparisonMode
-//import one.wabbit.random.gen.util.MutableBitDeque
-//import one.wabbit.random.gen.util.compareExceptions
-//import java.util.SplittableRandom
-//import kotlin.math.min
+// import one.wabbit.random.gen.util.ExceptionComparisonMode
+// import one.wabbit.random.gen.util.MutableBitDeque
+// import one.wabbit.random.gen.util.compareExceptions
+// import java.util.SplittableRandom
+// import kotlin.math.min
 //
-///** A result paired with a V2 seed (hybrid tape + choice log). */
-//data class WithV2<out A>(val seed: Long, val v2: TapeSeedV2, val result: A)
+// /** A result paired with a V2 seed (hybrid tape + choice log). */
+// data class WithV2<out A>(val seed: Long, val v2: TapeSeedV2, val result: A)
 //
-///** Record one run using the choice/tape engine, returning a V2 seed with result. */
-//fun <A : Any> Gen<A>.recordOnce(seed: Long): WithV2<A>? {
+// /** Record one run using the choice/tape engine, returning a V2 seed with result. */
+// fun <A : Any> Gen<A>.recordOnce(seed: Long): WithV2<A>? {
 //    val rec = ChoiceIO.Recorder(Entropy(EntropySource.Random(seed)))
 //    return when (val r = sampleC(rec)) {
 //        is RunResult.Ok -> {
@@ -21,10 +21,10 @@
 //        }
 //        else -> null
 //    }
-//}
+// }
 //
-///** Try to find a run that satisfies predicate, returning its V2 seed. */
-//fun <A : Any> Gen<A>.satisfyV2(iters: Int, seed: Long, p: (A) -> Boolean): WithV2<A>? {
+// /** Try to find a run that satisfies predicate, returning its V2 seed. */
+// fun <A : Any> Gen<A>.satisfyV2(iters: Int, seed: Long, p: (A) -> Boolean): WithV2<A>? {
 //    val rng = SplittableRandom(seed)
 //    repeat(iters) {
 //        val s = rng.nextLong()
@@ -32,22 +32,23 @@
 //        if (p(got.result)) return got
 //    }
 //    return null
-//}
+// }
 //
 //
-///**
+// /**
 // * Hypothesis-style greedy shrink (Phase 3):
-// * Pass A: value-aware for ints/uints (0 -> bisection -> bounds) by encoding target values into spans.
+// * Pass A: value-aware for ints/uints (0 -> bisection -> bounds) by encoding target values into
+// spans.
 // * Pass B: chunked zeroing within spans (halve, quarter, ...), then single-bit 1→0.
 // * Pass C: block deletion (ddmin) over interior bit ranges.
 // * After each accept: replay and re-record so spans realign.
 // */
-//fun <A : Any> Gen<A>.minimizeV2(
+// fun <A : Any> Gen<A>.minimizeV2(
 //    failing: WithV2<A>,
 //    iters: Int = 10_000,
 //    seed: Long = 0xBEEF,
 //    predicate: (A) -> Boolean
-//): WithV2<A>? {
+// ): WithV2<A>? {
 //    if (!predicate(failing.result)) return null
 //
 //    var tape = TapeSeedV2.toBitSequence(failing.v2) // current tape
@@ -169,7 +170,8 @@
 //            for ((sIx, eIx) in seqs) {
 //                val lenInfo = findLenBefore(log, sIx) ?: continue
 //                val (lenSpan, curLen, lenFirst, lenLast) = lenInfo
-//                val elems = blocksByKind(log, BlockKind.ELEM).filter { it.first > sIx && it.second < eIx }
+//                val elems = blocksByKind(log, BlockKind.ELEM).filter { it.first > sIx && it.second
+// < eIx }
 //
 //                for ((elStart, elEnd) in elems) {
 //                    val interior = interiorBitRange(log, elStart, elEnd) ?: continue
@@ -194,27 +196,27 @@
 //    }
 //
 //    return cur
-//}
+// }
 //
-//// --------------------------- V2 foreachMin loop (exception-driven) ---------------------------
+// // --------------------------- V2 foreachMin loop (exception-driven) ---------------------------
 //
-//class MinimizedExceptionV2(val original: Throwable, val seed: TapeSeedV2, val value: Any)
+// class MinimizedExceptionV2(val original: Throwable, val seed: TapeSeedV2, val value: Any)
 //    : Throwable(original.message, original)
 //
-//class FailedToMinimizeExceptionV2(val original: Throwable, val seed: TapeSeedV2)
+// class FailedToMinimizeExceptionV2(val original: Throwable, val seed: TapeSeedV2)
 //    : Throwable(original.message, original)
 //
-///**
+// /**
 // * Generate values; on first exception that matches [exceptionMode], minimize with V2 shrinker,
 // * then throw MinimizedExceptionV2 carrying the minimized value and a reproducible TapeSeedV2.
 // */
-//fun <A : Any> Gen<A>.foreachMinV2(
+// fun <A : Any> Gen<A>.foreachMinV2(
 //    random: SplittableRandom,
 //    iters: Int,
 //    minimizerSteps: Int = 10_000,
 //    exceptionMode: ExceptionComparisonMode = ExceptionComparisonMode.SAME_CLASS_MESSAGE_TOP_FRAME,
 //    f: (A) -> Unit
-//) {
+// ) {
 //    repeat(iters) {
 //        val seed = random.nextLong()
 //        val got = recordOnce<A>(seed) ?: return@repeat
@@ -238,25 +240,26 @@
 //            throw MinimizedExceptionV2(e0, shrunk.v2, shrunk.result)
 //        }
 //    }
-//}
+// }
 //
-//// --------------------------- Helpers ---------------------------
+// // --------------------------- Helpers ---------------------------
 //
-//// All blocks of a given kind, as (startIx, endIx)
-//private fun blocksByKind(log: ChoiceLog, kind: BlockKind): List<Pair<Int, Int>> {
+// // All blocks of a given kind, as (startIx, endIx)
+// private fun blocksByKind(log: ChoiceLog, kind: BlockKind): List<Pair<Int, Int>> {
 //    val out = mutableListOf<Pair<Int, Int>>()
 //    val stack = ArrayDeque<Int>()
 //    for ((i, c) in log.choices.withIndex()) {
 //        val t = c.tag
 //        if (t is Choice.Tag.Block && t.kind == kind) {
 //            if (t.edge == Choice.Tag.Block.Edge.START) stack.addLast(i)
-//            else if (t.edge == Choice.Tag.Block.Edge.END && stack.isNotEmpty()) out += stack.removeLast() to i
+//            else if (t.edge == Choice.Tag.Block.Edge.END && stack.isNotEmpty()) out +=
+// stack.removeLast() to i
 //        }
 //    }
 //    return out
-//}
+// }
 //
-//private fun interiorBitRange(log: ChoiceLog, startIx: Int, endIx: Int): Pair<Int, Int>? {
+// private fun interiorBitRange(log: ChoiceLog, startIx: Int, endIx: Int): Pair<Int, Int>? {
 //    var lo: Int? = null; var hi: Int? = null
 //    for (j in (startIx + 1) until endIx) {
 //        val s = log.choices[j].span; if (s.lengthBits <= 0) continue
@@ -265,9 +268,9 @@
 //        hi = if (hi == null || b > hi!!) b else hi
 //    }
 //    return if (lo != null && hi != null && hi!! > lo!!) lo!! to hi!! else null
-//}
+// }
 //
-//private fun intCandidates(range: IntRange, current: Int): Sequence<Int> = sequence {
+// private fun intCandidates(range: IntRange, current: Int): Sequence<Int> = sequence {
 //    val target = if (0 in range) 0 else range.first
 //    if (current != target) yield(target)
 //    var v = current
@@ -280,9 +283,9 @@
 //    }
 //    if (range.first != target) yield(range.first)
 //    if (range.last != target && range.last != range.first) yield(range.last)
-//}
+// }
 //
-//private fun uintCandidates(range: UIntRange, current: UInt): Sequence<UInt> = sequence {
+// private fun uintCandidates(range: UIntRange, current: UInt): Sequence<UInt> = sequence {
 //    val target = if (range.first == 0u) 0u else range.first
 //    if (current != target) yield(target)
 //    var v = current
@@ -295,46 +298,46 @@
 //    }
 //    if (range.first != target) yield(range.first)
 //    if (range.last != target && range.last != range.first) yield(range.last)
-//}
+// }
 //
-//private fun ceilLog2(m: Int): Int {
+// private fun ceilLog2(m: Int): Int {
 //    require(m > 0)
 //    var x = m - 1
 //    var p = 0
 //    while (x > 0) { p++; x = x ushr 1 }
 //    return p
-//}
+// }
 //
-//private fun floorLog2(m: Int): Int {
+// private fun floorLog2(m: Int): Int {
 //    require(m > 0)
 //    var x = m
 //    var p = -1
 //    while (x > 0) { x = x ushr 1; p++ }
 //    return p
-//}
+// }
 //
-//fun <A : Any> Gen<A>.replayV2(v2: TapeSeedV2): A? {
+// fun <A : Any> Gen<A>.replayV2(v2: TapeSeedV2): A? {
 //    val ent = Entropy(EntropySource.Replay(TapeSeedV2.toBitSequence(v2)))
 //    val io = ChoiceIO.ReplayAdaptive(ent)
 //    return when (val r = sampleC(io)) {
 //        is RunResult.Ok -> r.value
 //        else -> null
 //    }
-//}
+// }
 //
-///**
+// /**
 // * Write `value` in the span using the same TBE (truncated-binary) scheme as Uniforms.uint.
 // * Respects the currently recorded span length L (k or k+1). Never *extends* the span.
 // * If the requested value cannot be represented with L bits (rare when L==k and value >= t),
 // * we return the original tape (no-op) so the caller can try another candidate (e.g., 0).
 // */
-//private fun encodeUIntIntoSpanTBE(
+// private fun encodeUIntIntoSpanTBE(
 //    tape: MutableBitDeque,
 //    span: BitSpan,
 //    first: UInt,
 //    last: UInt,
 //    value: UInt
-//): MutableBitDeque {
+// ): MutableBitDeque {
 //    require(first <= value && value <= last)
 //    val m = (last - first + 1u).toInt()
 //    require(m > 0)
@@ -359,7 +362,8 @@
 //            tape
 //        }
 //        L == k -> {
-//            // Only u < t are encodable with k bits. If not, bail (caller will try a smaller candidate).
+//            // Only u < t are encodable with k bits. If not, bail (caller will try a smaller
+// candidate).
 //            if (u >= t) return tape
 //            writeBits(k) { i -> ((u ushr (k - 1 - i)) and 1) == 1 }
 //            out
@@ -367,7 +371,8 @@
 //        else -> {
 //            // L >= k+1: We can encode either the short or long code.
 //            if (u < t) {
-//                // short code (k bits), pad remaining bits with 0 to keep lexicographically minimal
+//                // short code (k bits), pad remaining bits with 0 to keep lexicographically
+// minimal
 //                writeBits(k) { i -> ((u ushr (k - 1 - i)) and 1) == 1 }
 //                out
 //            } else {
@@ -382,43 +387,45 @@
 //            }
 //        }
 //    }
-//}
+// }
 //
-//private fun encodeIntIntoSpanTBE(
+// private fun encodeIntIntoSpanTBE(
 //    tape: MutableBitDeque,
 //    span: BitSpan,
 //    range: IntRange,
 //    value: Int
-//): MutableBitDeque {
+// ): MutableBitDeque {
 //    require(value in range)
 //    val first = range.first
 //    val last  = range.last
 //    val uMax  = (last - first + 1)
 //    val u     = (value - first).coerceIn(0, uMax - 1).toUInt()
 //    return encodeUIntIntoSpanTBE(tape, span, 0u, (uMax - 1).toUInt(), u)
-//}
+// }
 //
-//private fun zeroRange(src: MutableBitDeque, from: Int, to: Int): MutableBitDeque {
+// private fun zeroRange(src: MutableBitDeque, from: Int, to: Int): MutableBitDeque {
 //    val out = src.copy()
 //    var i = from
 //    while (i < to) { out[i.toLong()] = false; i++ }
 //    return out
-//}
+// }
 //
-//private fun takePrefix(src: MutableBitDeque, count: Int): MutableBitDeque {
+// private fun takePrefix(src: MutableBitDeque, count: Int): MutableBitDeque {
 //    val out = MutableBitDeque()
 //    val n = min(count, src.size.toInt())
 //    var i = 0
 //    while (i < n) { out.add(src[i.toLong()]); i++ }
 //    return out
-//}
+// }
 //
-///** Identify earliest BlockStart..BlockEnd pair with non-empty interior; return absolute bit range to delete. */
-//private fun firstRemovableBlock(log: ChoiceLog): Pair<Int, Int>? {
+// /** Identify earliest BlockStart..BlockEnd pair with non-empty interior; return absolute bit
+// range to delete. */
+// private fun firstRemovableBlock(log: ChoiceLog): Pair<Int, Int>? {
 //    val stack = ArrayDeque<Int>()
 //    for (i in log.choices.indices) {
 //        val c = log.choices[i]
-//        if (c.tag is Choice.Tag.Block && c.tag.edge == Choice.Tag.Block.Edge.START) stack.addLast(i)
+//        if (c.tag is Choice.Tag.Block && c.tag.edge == Choice.Tag.Block.Edge.START)
+// stack.addLast(i)
 //        else if (c.tag is Choice.Tag.Block && c.tag.edge == Choice.Tag.Block.Edge.END) {
 //            if (stack.isNotEmpty()) {
 //                val startIx = stack.removeLast()
@@ -428,25 +435,28 @@
 //                for (j in interior) {
 //                    val s = log.choices[j].span
 //                    if (s.lengthBits <= 0) continue
-//                    if (minBit == null || s.startBits.toInt() < minBit!!) minBit = s.startBits.toInt()
+//                    if (minBit == null || s.startBits.toInt() < minBit!!) minBit =
+// s.startBits.toInt()
 //                    val end = s.startBits.toInt() + s.lengthBits
 //                    if (maxBit == null || end > maxBit!!) maxBit = end
 //                }
-//                if (minBit != null && maxBit != null && maxBit!! > minBit!!) return minBit!! to maxBit!!
+//                if (minBit != null && maxBit != null && maxBit!! > minBit!!) return minBit!! to
+// maxBit!!
 //            }
 //        }
 //    }
 //    return null
-//}
+// }
 //
-///** ddmin: try removing progressively smaller partitions of [fromBit, toBit) until something sticks. */
-//private fun <A : Any> ddminDeleteRange(
+// /** ddmin: try removing progressively smaller partitions of [fromBit, toBit) until something
+// sticks. */
+// private fun <A : Any> ddminDeleteRange(
 //    gen: Gen<A>,
 //    baseTape: MutableBitDeque,
 //    fromBit: Int,
 //    toBit: Int,
 //    tryAccept: (MutableBitDeque) -> Boolean
-//): Boolean {
+// ): Boolean {
 //    val length = toBit - fromBit
 //    if (length <= 0) return false
 //
@@ -473,45 +483,49 @@
 //        }
 //    }
 //    return false
-//}
+// }
 //
-//private fun removeBitRange(src: MutableBitDeque, fromBit: Int, toBit: Int): MutableBitDeque {
+// private fun removeBitRange(src: MutableBitDeque, fromBit: Int, toBit: Int): MutableBitDeque {
 //    val out = MutableBitDeque()
 //    var i = 0
 //    while (i < fromBit && i < src.size.toInt()) { out.add(src[i.toLong()]); i++ }
 //    var j = toBit
 //    while (j < src.size) { out.add(src[j.toLong()]); j++ }
 //    return out
-//}
+// }
 //
-//// --------------------------- Optional: pretty trace ---------------------------
+// // --------------------------- Optional: pretty trace ---------------------------
 //
-//fun formatChoiceLog(log: ChoiceLog): String = buildString {
+// fun formatChoiceLog(log: ChoiceLog): String = buildString {
 //    for (c in log.choices) {
 //        append("#").append(c.ix).append(" ")
 //        when (val t = c.tag) {
 //            is Choice.Tag.Block      -> append("Block(").append(t.edge).append(")")
 //            is Choice.Tag.Bool       -> append("Bool=").append(t.value)
-//            is Choice.Tag.IntRange   -> append("Int[").append(t.first).append("..").append(t.last).append("]=").append(t.value)
-//            is Choice.Tag.UIntRange  -> append("UInt[").append(t.first).append("..").append(t.last).append("]=").append(t.value)
+//            is Choice.Tag.IntRange   ->
+// append("Int[").append(t.first).append("..").append(t.last).append("]=").append(t.value)
+//            is Choice.Tag.UIntRange  ->
+// append("UInt[").append(t.first).append("..").append(t.last).append("]=").append(t.value)
 //            is Choice.Tag.Bits       -> append("Bits(width=").append(t.width).append(")")
-//            is Choice.Tag.DoubleU01  -> append("Double(eps=").append(t.eps).append(")=").append(t.value)
+//            is Choice.Tag.DoubleU01  ->
+// append("Double(eps=").append(t.eps).append(")=").append(t.value)
 //            is Choice.Tag.Bytes      -> append("Bytes(len=").append(t.length).append(")")
 //        }
 //        append("  span=L").append(c.span.lengthBits).append("@").append(c.span.startBits)
 //        c.label?.let { append("  label=").append(it) }
 //        append('\n')
 //    }
-//}
+// }
 //
-//private data class LengthInfo(val span: BitSpan, val value: Int, val first: Int, val last: Int)
+// private data class LengthInfo(val span: BitSpan, val value: Int, val first: Int, val last: Int)
 //
-//private fun findLenBefore(log: ChoiceLog, seqStartIx: Int): LengthInfo? {
+// private fun findLenBefore(log: ChoiceLog, seqStartIx: Int): LengthInfo? {
 //    var i = seqStartIx - 1
 //    var lenEnd = -1
 //    while (i >= 0) {
 //        val c = log.choices[i]
-//        if (c.tag is Choice.Tag.Block && c.tag.kind == BlockKind.LEN && c.tag.edge == Choice.Tag.Block.Edge.END) {
+//        if (c.tag is Choice.Tag.Block && c.tag.kind == BlockKind.LEN && c.tag.edge ==
+// Choice.Tag.Block.Edge.END) {
 //            lenEnd = i; break
 //        }
 //        i--
@@ -521,7 +535,8 @@
 //    i = lenEnd - 1
 //    while (i >= 0) {
 //        val c = log.choices[i]
-//        if (c.tag is Choice.Tag.Block && c.tag.kind == BlockKind.LEN && c.tag.edge == Choice.Tag.Block.Edge.START) {
+//        if (c.tag is Choice.Tag.Block && c.tag.kind == BlockKind.LEN && c.tag.edge ==
+// Choice.Tag.Block.Edge.START) {
 //            lenStart = i; break
 //        }
 //        i--
@@ -536,4 +551,4 @@
 //        }
 //    }
 //    return null
-//}
+// }

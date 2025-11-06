@@ -7,15 +7,15 @@ import one.wabbit.random.gen.util.MutableBitDeque
 /**
  * [TapeSeed] encapsulates the seed and bit-flip sequence used to initialize a [RawTapeReader].
  *
- * The `seed` is a 64-bit integer that initializes a pseudorandom number generator (PRNG).
- * The `flips` is a sequence of bits indicating which bits from the PRNG output should be flipped
+ * The `seed` is a 64-bit integer that initializes a pseudorandom number generator (PRNG). The
+ * `flips` is a sequence of bits indicating which bits from the PRNG output should be flipped
  * (XORed) to produce the final random bits used during generation.
  *
- * This combination allows for deterministic replay of random generation sequences,
- * as well as controlled mutation of those sequences for testing purposes.
+ * This combination allows for deterministic replay of random generation sequences, as well as
+ * controlled mutation of those sequences for testing purposes.
  *
- * You can serialize a [TapeSeed] to a compact Base58 string using [toBase58String],
- * and deserialize it back using [fromBase58String].
+ * You can serialize a [TapeSeed] to a compact Base58 string using [toBase58String], and deserialize
+ * it back using [fromBase58String].
  */
 data class TapeSeed(val seed: Long, val flips: BitSequence) {
     // Convert to a single Base58 string:
@@ -59,61 +59,51 @@ data class TapeSeed(val seed: Long, val flips: BitSequence) {
     }
 }
 
-/**
- * Store `value` as 8 big-endian bytes into `dest`, starting at `offset`.
- */
+/** Store `value` as 8 big-endian bytes into `dest`, starting at `offset`. */
 internal fun putLongBE(dest: ByteArray, offset: Int, value: Long) {
-    dest[offset]     = (value ushr 56).toByte()
+    dest[offset] = (value ushr 56).toByte()
     dest[offset + 1] = (value ushr 48).toByte()
     dest[offset + 2] = (value ushr 40).toByte()
     dest[offset + 3] = (value ushr 32).toByte()
     dest[offset + 4] = (value ushr 24).toByte()
     dest[offset + 5] = (value ushr 16).toByte()
-    dest[offset + 6] = (value ushr  8).toByte()
-    dest[offset + 7] = (value        ).toByte()
+    dest[offset + 6] = (value ushr 8).toByte()
+    dest[offset + 7] = (value).toByte()
 }
 
-/**
- * Read 8 big-endian bytes from `src` (starting at `offset`) into a `Long`.
- */
-internal fun getLongBE(src: ByteArray, offset: Int): Long {
-    return ((src[offset].toLong() and 0xFF) shl 56) or
-            ((src[offset + 1].toLong() and 0xFF) shl 48) or
-            ((src[offset + 2].toLong() and 0xFF) shl 40) or
-            ((src[offset + 3].toLong() and 0xFF) shl 32) or
-            ((src[offset + 4].toLong() and 0xFF) shl 24) or
-            ((src[offset + 5].toLong() and 0xFF) shl 16) or
-            ((src[offset + 6].toLong() and 0xFF) shl  8) or
-            ((src[offset + 7].toLong() and 0xFF)      )
-}
+/** Read 8 big-endian bytes from `src` (starting at `offset`) into a `Long`. */
+internal fun getLongBE(src: ByteArray, offset: Int): Long =
+    ((src[offset].toLong() and 0xFF) shl 56) or
+        ((src[offset + 1].toLong() and 0xFF) shl 48) or
+        ((src[offset + 2].toLong() and 0xFF) shl 40) or
+        ((src[offset + 3].toLong() and 0xFF) shl 32) or
+        ((src[offset + 4].toLong() and 0xFF) shl 24) or
+        ((src[offset + 5].toLong() and 0xFF) shl 16) or
+        ((src[offset + 6].toLong() and 0xFF) shl 8) or
+        ((src[offset + 7].toLong() and 0xFF))
 
-/**
- * Store `value` as 4 big-endian bytes into `dest`, starting at `offset`.
- */
+/** Store `value` as 4 big-endian bytes into `dest`, starting at `offset`. */
 internal fun putIntBE(dest: ByteArray, offset: Int, value: Int) {
-    dest[offset]     = (value ushr 24).toByte()
+    dest[offset] = (value ushr 24).toByte()
     dest[offset + 1] = (value ushr 16).toByte()
-    dest[offset + 2] = (value ushr  8).toByte()
-    dest[offset + 3] = (value       ).toByte()
+    dest[offset + 2] = (value ushr 8).toByte()
+    dest[offset + 3] = (value).toByte()
 }
 
-/**
- * Read 4 big-endian bytes from `src` (starting at `offset`) into an `Int`.
- */
-internal fun getIntBE(src: ByteArray, offset: Int): Int {
-    return ((src[offset].toInt() and 0xFF) shl 24) or
-            ((src[offset + 1].toInt() and 0xFF) shl 16) or
-            ((src[offset + 2].toInt() and 0xFF) shl  8) or
-            ((src[offset + 3].toInt() and 0xFF))
-}
+/** Read 4 big-endian bytes from `src` (starting at `offset`) into an `Int`. */
+internal fun getIntBE(src: ByteArray, offset: Int): Int =
+    ((src[offset].toInt() and 0xFF) shl 24) or
+        ((src[offset + 1].toInt() and 0xFF) shl 16) or
+        ((src[offset + 2].toInt() and 0xFF) shl 8) or
+        ((src[offset + 3].toInt() and 0xFF))
 
 /**
- * Pack the bits of `flips` into a ByteArray, 8 bits per byte (MSB-first).
- * If flips.size is not a multiple of 8, the last byte is padded with zero bits.
+ * Pack the bits of `flips` into a ByteArray, 8 bits per byte (MSB-first). If flips.size is not a
+ * multiple of 8, the last byte is padded with zero bits.
  */
 internal fun packBits(flips: BitSequence): ByteArray {
     val bitCount = flips.size
-    val byteCount = ((bitCount + 7) / 8).toInt()  // round up
+    val byteCount = ((bitCount + 7) / 8).toInt() // round up
     val output = ByteArray(byteCount)
     for (i in 0 until bitCount) {
         if (flips[i]) {
@@ -126,8 +116,8 @@ internal fun packBits(flips: BitSequence): ByteArray {
 }
 
 /**
- * Unpack `totalBits` bits from `bytes` (packed MSB-first) into a new `MutableList<Boolean>`.
- * If `bytes` has extra padding bits, we ignore them beyond `totalBits`.
+ * Unpack `totalBits` bits from `bytes` (packed MSB-first) into a new `MutableList<Boolean>`. If
+ * `bytes` has extra padding bits, we ignore them beyond `totalBits`.
  */
 internal fun unpackBits(bytes: ByteArray, totalBits: Int): MutableBitDeque {
     val out = MutableBitDeque()

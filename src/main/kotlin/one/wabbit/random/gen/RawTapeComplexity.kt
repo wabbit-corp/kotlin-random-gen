@@ -10,12 +10,9 @@ data class RawTapeComplexity(val length: Long, val positive: Long) : Comparable<
             else -> 0
         }
 
-    override fun toString(): String {
-        return "L${length}P$positive"
-    }
+    override fun toString(): String = "L${length}P$positive"
 
     companion object {
-        fun of(tape: RawTapeReader): RawTapeComplexity =
-            RawTapeComplexity(tape.read, tape.read1)
+        fun of(tape: RawTapeReader): RawTapeComplexity = RawTapeComplexity(tape.read, tape.read1)
     }
 }

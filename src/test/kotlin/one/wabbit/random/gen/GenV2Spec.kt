@@ -1,12 +1,12 @@
-//package one.wabbit.random.gen
+// package one.wabbit.random.gen
 //
-//import java.util.SplittableRandom
-//import kotlin.test.Test
-//import kotlin.test.assertEquals
-//import kotlin.test.assertNotNull
-//import kotlin.test.assertTrue
+// import java.util.SplittableRandom
+// import kotlin.test.Test
+// import kotlin.test.assertEquals
+// import kotlin.test.assertNotNull
+// import kotlin.test.assertTrue
 //
-//class GenV2Spec {
+// class GenV2Spec {
 //    @Test
 //    fun phase0R_demo() {
 //        // Record
@@ -22,7 +22,8 @@
 //        val v2 = TapeSeedV2.fromRecorder(0xDEADBEEF, rec)
 //
 //        // Adaptive replay (consumes tape; ignores prior values)
-//        val rep = ChoiceIO.ReplayAdaptive(Entropy(EntropySource.Replay(TapeSeedV2.toBitSequence(v2))))
+//        val rep =
+// ChoiceIO.ReplayAdaptive(Entropy(EntropySource.Replay(TapeSeedV2.toBitSequence(v2))))
 //        beginBlock(rep, BlockKind.TUPLE, "pair")
 //        val a2 = chooseInt(rep, 0..100, "a")
 //        val b2 = chooseUInt(rep, 0u..255u, "b")
@@ -76,4 +77,4 @@
 //            println("Seed: ${e.seed.toBase58String().take(80)}...")
 //        }
 //    }
-//}
+// }

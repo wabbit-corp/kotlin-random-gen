@@ -2,6 +2,8 @@
 
 package one.wabbit.random.gen.util
 
+import kotlin.math.max
+import kotlin.math.min
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ByteArraySerializer
@@ -11,23 +13,22 @@ import kotlinx.serialization.descriptors.element
 import kotlinx.serialization.encoding.CompositeDecoder
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
-import kotlin.math.max
-import kotlin.math.min
 
 /**
- * Immutable, persistent bit sequence backed by ULongArray leaves.
- * Internally a rope of chunks (balanced binary tree).
+ * Immutable, persistent bit sequence backed by ULongArray leaves. Internally a rope of chunks
+ * (balanced binary tree).
  *
  * Key ops are O(log n) with very small constant factors for ≤64-bit edits.
  */
 @Serializable(with = ImmBitSeqSerializer::class)
 class PersistentBitSeq private constructor(internal val root: Node) : BitSequence {
-
     // ---- Public API ---------------------------------------------------------
 
-    val length: Long get() = size
+    val length: Long
+        get() = size
 
-    override val size: Long get() = root.size
+    override val size: Long
+        get() = root.size
 
     override operator fun get(index: Long): Boolean {
         require(index in 0 until size) { "Index $index out of [0,$size)" }
@@ -48,9 +49,7 @@ class PersistentBitSeq private constructor(internal val root: Node) : BitSequenc
                 val chunk = leaf.readULong(i, toTake)
                 out.ensureSpaceFor(toTake)
                 // LSB-first write into deque
-                repeat(toTake) { b ->
-                    out.add(((chunk shr b) and 1uL) != 0uL)
-                }
+                repeat(toTake) { b -> out.add(((chunk shr b) and 1uL) != 0uL) }
                 i += toTake
             }
         }
@@ -61,31 +60,43 @@ class PersistentBitSeq private constructor(internal val root: Node) : BitSequenc
 
     /** Append another immutable sequence (structural sharing). */
     fun append(other: PersistentBitSeq): PersistentBitSeq =
-        if (other.size == 0L) this
-        else if (size == 0L) other
-        else PersistentBitSeq(concat(root, other.root))
+        if (other.size == 0L) {
+            this
+        } else if (size == 0L) {
+            other
+        } else {
+            PersistentBitSeq(concat(root, other.root))
+        }
 
     /** Prepend another immutable sequence. */
     fun prepend(other: PersistentBitSeq): PersistentBitSeq =
-        if (other.size == 0L) this
-        else if (size == 0L) other
-        else PersistentBitSeq(concat(other.root, root))
+        if (other.size == 0L) {
+            this
+        } else if (size == 0L) {
+            other
+        } else {
+            PersistentBitSeq(concat(other.root, root))
+        }
 
     /** Append a single bit. */
-    fun appendBit(bit: Boolean): PersistentBitSeq =
-        append(fromULong(if (bit) 1uL else 0uL, 1))
+    fun appendBit(bit: Boolean): PersistentBitSeq = append(fromULong(if (bit) 1uL else 0uL, 1))
 
     /** Prepend a single bit. */
-    fun prependBit(bit: Boolean): PersistentBitSeq =
-        prepend(fromULong(if (bit) 1uL else 0uL, 1))
+    fun prependBit(bit: Boolean): PersistentBitSeq = prepend(fromULong(if (bit) 1uL else 0uL, 1))
 
     /** Append up to 64 bits from [value], respecting [order]. */
-    fun append64(value: ULong, bitCount: Int, order: BitOrder = BitOrder.LSB_FIRST): PersistentBitSeq =
-        append(fromULong(value, bitCount, order))
+    fun append64(
+        value: ULong,
+        bitCount: Int,
+        order: BitOrder = BitOrder.LSB_FIRST,
+    ): PersistentBitSeq = append(fromULong(value, bitCount, order))
 
     /** Prepend up to 64 bits from [value], respecting [order]. */
-    fun prepend64(value: ULong, bitCount: Int, order: BitOrder = BitOrder.LSB_FIRST): PersistentBitSeq =
-        prepend(fromULong(value, bitCount, order))
+    fun prepend64(
+        value: ULong,
+        bitCount: Int,
+        order: BitOrder = BitOrder.LSB_FIRST,
+    ): PersistentBitSeq = prepend(fromULong(value, bitCount, order))
 
     // --- Cuts / Slices -------------------------------------------------------
 
@@ -106,8 +117,8 @@ class PersistentBitSeq private constructor(internal val root: Node) : BitSequenc
     // --- Replace / Flip (≤64 bits window) ------------------------------------
 
     /**
-     * Flip bits in window [offset, offset + windowBits), masked by [mask].
-     * windowBits must be in 1..64. Mask is applied LSB-first to that window.
+     * Flip bits in window [offset, offset + windowBits), masked by [mask]. windowBits must be in
+     * 1..64. Mask is applied LSB-first to that window.
      */
     fun flipMasked64(offset: Long, windowBits: Int, mask: ULong): PersistentBitSeq {
         require(windowBits in 1..64)
@@ -126,17 +137,23 @@ class PersistentBitSeq private constructor(internal val root: Node) : BitSequenc
      * Overwrite up to 64 consecutive bits starting at [offset] with [value]’s low [bitCount] bits.
      * Bits come from [value] LSB-first unless [order] = MSB_FIRST.
      */
-    fun write64(offset: Long, bitCount: Int, value: ULong, order: BitOrder = BitOrder.LSB_FIRST): PersistentBitSeq {
+    fun write64(
+        offset: Long,
+        bitCount: Int,
+        value: ULong,
+        order: BitOrder = BitOrder.LSB_FIRST,
+    ): PersistentBitSeq {
         require(bitCount in 0..64)
         require(offset >= 0 && offset + bitCount <= size) { "Out of bounds" }
         if (bitCount == 0) return this
         val (prefix, tail) = split(root, offset)
         val (mid, suffix) = split(tail, bitCount.toLong())
 
-        val v = when (order) {
-            BitOrder.LSB_FIRST -> value and lowMask(bitCount)
-            BitOrder.MSB_FIRST -> shiftDownToLSB(value, bitCount)
-        }
+        val v =
+            when (order) {
+                BitOrder.LSB_FIRST -> value and lowMask(bitCount)
+                BitOrder.MSB_FIRST -> shiftDownToLSB(value, bitCount)
+            }
         val mid2 = Leaf(ulongArrayOf(v), 0, 0, bitCount).normalize()
         return PersistentBitSeq(concat3(prefix, mid2, suffix))
     }
@@ -174,29 +191,38 @@ class PersistentBitSeq private constructor(internal val root: Node) : BitSequenc
     internal sealed interface Node {
         val size: Long
         val height: Int
+
         fun getBit(index: Long): Boolean
+
         fun forEachLeaf(visit: (Leaf) -> Unit)
+
         fun readAsULong(bitCount: Int): ULong // only valid when size <= 64
     }
 
     /** Empty node (singleton). */
     internal data object Empty : Node {
-        override val size: Long get() = 0
-        override val height: Int get() = 0
+        override val size: Long
+            get() = 0
+
+        override val height: Int
+            get() = 0
+
         override fun getBit(index: Long): Boolean = error("Empty")
+
         override fun forEachLeaf(visit: (Leaf) -> Unit) {}
+
         override fun readAsULong(bitCount: Int): ULong = 0uL
     }
 
     /**
-     * Leaf node referencing a slice of [data].
-     * The slice starts at (startWord, startBit) and spans [bitSize] bits.
+     * Leaf node referencing a slice of [data]. The slice starts at (startWord, startBit) and spans
+     * [bitSize] bits.
      */
     internal data class Leaf(
         val data: ULongArray,
         val startWord: Int,
-        val startBit: Int,   // 0..63
-        val bitSize: Int
+        val startBit: Int, // 0..63
+        val bitSize: Int,
     ) : Node {
         init {
             require(startBit in 0..63)
@@ -207,8 +233,11 @@ class PersistentBitSeq private constructor(internal val root: Node) : BitSequenc
             }
         }
 
-        override val size: Long get() = bitSize.toLong()
-        override val height: Int get() = 1
+        override val size: Long
+            get() = bitSize.toLong()
+
+        override val height: Int
+            get() = 1
 
         override fun getBit(index: Long): Boolean {
             val i = index.toInt()
@@ -299,7 +328,8 @@ class PersistentBitSeq private constructor(internal val root: Node) : BitSequenc
                 outPos += take
                 if (remaining == 0) break
                 // next word
-                val nextWord = data[w0 + ((startAbs + (count - remaining)) ushr 6) - (startAbs ushr 6)]
+                val nextWord =
+                    data[w0 + ((startAbs + (count - remaining)) ushr 6) - (startAbs ushr 6)]
                 word = nextWord
                 localBit = 0
                 bitsInWord = 64
@@ -312,11 +342,13 @@ class PersistentBitSeq private constructor(internal val root: Node) : BitSequenc
     internal data class Concat(val left: Node, val right: Node) : Node {
         override val size: Long = left.size + right.size
         override val height: Int = 1 + max(left.height, right.height)
+
         override fun getBit(index: Long): Boolean =
             if (index < left.size) left.getBit(index) else right.getBit(index - left.size)
 
         override fun forEachLeaf(visit: (Leaf) -> Unit) {
-            left.forEachLeaf(visit); right.forEachLeaf(visit)
+            left.forEachLeaf(visit)
+            right.forEachLeaf(visit)
         }
 
         override fun readAsULong(bitCount: Int): ULong {
@@ -438,12 +470,15 @@ class PersistentBitSeq private constructor(internal val root: Node) : BitSequenc
     }
 
     companion object {
-        internal const val MERGE_BITS_THRESHOLD = 4096   // merge small neighbor leaves to limit depth
+        internal const val MERGE_BITS_THRESHOLD = 4096 // merge small neighbor leaves to limit depth
         internal const val MAX_BITS_PER_LEAF_TO_PACK = 1024 // pack small unaligned leaves
 
         fun empty(): PersistentBitSeq = PersistentBitSeq(Empty)
 
-        /** Construct from a raw ULongArray where all bits up to bitCount are used (LSB-first packing). */
+        /**
+         * Construct from a raw ULongArray where all bits up to bitCount are used (LSB-first
+         * packing).
+         */
         fun fromULongs(words: ULongArray, bitCount: Long): PersistentBitSeq {
             require(bitCount >= 0)
             if (bitCount == 0L) return empty()
@@ -460,13 +495,18 @@ class PersistentBitSeq private constructor(internal val root: Node) : BitSequenc
         }
 
         /** Build from a single ULong of lower [bitCount] bits (<=64). */
-        fun fromULong(value: ULong, bitCount: Int, order: BitOrder = BitOrder.LSB_FIRST): PersistentBitSeq {
+        fun fromULong(
+            value: ULong,
+            bitCount: Int,
+            order: BitOrder = BitOrder.LSB_FIRST,
+        ): PersistentBitSeq {
             require(bitCount in 0..64)
             if (bitCount == 0) return empty()
-            val w = when (order) {
-                BitOrder.LSB_FIRST -> value
-                BitOrder.MSB_FIRST -> shiftDownToLSB(value, bitCount)
-            }
+            val w =
+                when (order) {
+                    BitOrder.LSB_FIRST -> value
+                    BitOrder.MSB_FIRST -> shiftDownToLSB(value, bitCount)
+                }
             val arr = ulongArrayOf(w)
             return PersistentBitSeq(Leaf(arr, 0, 0, bitCount).normalize())
         }
@@ -476,11 +516,11 @@ class PersistentBitSeq private constructor(internal val root: Node) : BitSequenc
 // ---- Serializer -------------------------------------------------------------
 
 object ImmBitSeqSerializer : KSerializer<PersistentBitSeq> {
-
-    override val descriptor: SerialDescriptor = buildClassSerialDescriptor("ImmBitSeq") {
-        element<Long>("bitCount")
-        element<ByteArray>("bits") // densely packed, LSB-first per byte
-    }
+    override val descriptor: SerialDescriptor =
+        buildClassSerialDescriptor("ImmBitSeq") {
+            element<Long>("bitCount")
+            element<ByteArray>("bits") // densely packed, LSB-first per byte
+        }
 
     override fun serialize(encoder: Encoder, value: PersistentBitSeq) {
         val sz = value.size
@@ -533,13 +573,12 @@ object ImmBitSeqSerializer : KSerializer<PersistentBitSeq> {
 
 // ---- Support: packing, masks, shifts ---------------------------------------
 
-private inline fun lowMask(n: Int): ULong {
-    return when {
+private inline fun lowMask(n: Int): ULong =
+    when {
         n <= 0 -> 0uL
         n >= 64 -> ULong.MAX_VALUE
         else -> (1uL shl n) - 1uL
     }
-}
 
 /** Convert MSB-first within a [bitCount]-wide value down to LSB-first storage. */
 private fun shiftDownToLSB(v: ULong, bitCount: Int): ULong {
@@ -567,12 +606,14 @@ private fun packToULongs(bytes: ByteArray, order: BitOrder): ULongArray {
         var b = 0
         while (b < 8 && bi < bytes.size) {
             val by = bytes[bi].toInt() and 0xFF
-            val v = when (order) {
-                BitOrder.LSB_FIRST -> by.toULong()      // byte already LSB-first inside byte
-                BitOrder.MSB_FIRST -> reverseBits8(by).toULong()
-            }
+            val v =
+                when (order) {
+                    BitOrder.LSB_FIRST -> by.toULong() // byte already LSB-first inside byte
+                    BitOrder.MSB_FIRST -> reverseBits8(by).toULong()
+                }
             w = w or (v shl (8 * b))
-            b++; bi++
+            b++
+            bi++
         }
         words[wi++] = w
     }

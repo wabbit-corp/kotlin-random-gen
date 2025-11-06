@@ -12,7 +12,7 @@ import kotlinx.serialization.encoding.Encoder
 
 enum class BitOrder {
     MSB_FIRST,
-    LSB_FIRST
+    LSB_FIRST,
 }
 
 interface BitSequence {
@@ -24,13 +24,11 @@ interface BitSequence {
 }
 
 /**
- * A ring-buffer bit deque, storing bits in a [LongArray].
- * Now annotated with @Serializable, using a custom serializer that
- * efficiently stores only the "used" bits in a ByteArray.
+ * A ring-buffer bit deque, storing bits in a [LongArray]. Now annotated with @Serializable, using a
+ * custom serializer that efficiently stores only the "used" bits in a ByteArray.
  */
 @Serializable(with = MutableBitDequeSerializer::class)
 class MutableBitDeque : BitSequence {
-
     private var backing: LongArray = LongArray(4) // Start with 4 * 64 = 256 bits capacity
     internal var capacityInBits: Int = backing.size * 64
 
@@ -73,19 +71,18 @@ class MutableBitDeque : BitSequence {
         val neededToAdd = (index + 1) - size
         ensureSpaceFor(neededToAdd.toInt())
         // fill with false up to index-1
-        repeat((neededToAdd - 1).toInt()) {
-            add(false)
-        }
+        repeat((neededToAdd - 1).toInt()) { add(false) }
         add(value)
     }
 
     fun addAll(value: Byte, order: BitOrder = BitOrder.MSB_FIRST) {
         ensureSpaceFor(8)
         for (i in 0 until 8) {
-            val bit = when (order) {
-                BitOrder.MSB_FIRST -> ((value.toInt() and (1 shl (7 - i))) != 0)
-                BitOrder.LSB_FIRST -> ((value.toInt() and (1 shl i)) != 0)
-            }
+            val bit =
+                when (order) {
+                    BitOrder.MSB_FIRST -> ((value.toInt() and (1 shl (7 - i))) != 0)
+                    BitOrder.LSB_FIRST -> ((value.toInt() and (1 shl i)) != 0)
+                }
             add(bit)
         }
     }
@@ -93,10 +90,11 @@ class MutableBitDeque : BitSequence {
     fun addAll(value: Long, order: BitOrder = BitOrder.MSB_FIRST) {
         ensureSpaceFor(64)
         for (i in 0 until 64) {
-            val bit = when (order) {
-                BitOrder.MSB_FIRST -> ((value and (1L shl (63 - i))) != 0L)
-                BitOrder.LSB_FIRST -> ((value and (1L shl i)) != 0L)
-            }
+            val bit =
+                when (order) {
+                    BitOrder.MSB_FIRST -> ((value and (1L shl (63 - i))) != 0L)
+                    BitOrder.LSB_FIRST -> ((value and (1L shl i)) != 0L)
+                }
             add(bit)
         }
     }
@@ -110,17 +108,13 @@ class MutableBitDeque : BitSequence {
     }
 
     fun removeFirst(n: Int, order: BitOrder = BitOrder.MSB_FIRST): Long {
-        require(n in 0..64) {
-            "removeFirst(n): n must be within [0..64], got $n"
-        }
+        require(n in 0..64) { "removeFirst(n): n must be within [0..64], got $n" }
         check(bitCount >= n) { "Not enough bits to remove. size=$size, requested=$n" }
 
         var value = 0L
         when (order) {
             BitOrder.MSB_FIRST -> {
-                repeat(n) {
-                    value = (value shl 1) or if (removeFirst()) 1L else 0L
-                }
+                repeat(n) { value = (value shl 1) or if (removeFirst()) 1L else 0L }
             }
             BitOrder.LSB_FIRST -> {
                 repeat(n) { i ->
@@ -152,6 +146,7 @@ class MutableBitDeque : BitSequence {
         check(bitCount > 0) { "Cannot peek from empty deque" }
         return get(0)
     }
+
     fun peekLast(): Boolean {
         check(bitCount > 0) { "Cannot peek from empty deque" }
         val idx = (endBitIndex - 1 + capacityInBits) % capacityInBits
@@ -208,7 +203,7 @@ class MutableBitDeque : BitSequence {
     // ---------------------- Internal Helpers ---------------------- //
 
     internal fun getBitAt(globalIndex: Int): Boolean {
-        val arrIndex = globalIndex ushr 6  // /64
+        val arrIndex = globalIndex ushr 6 // /64
         val bitOffset = globalIndex and 63 // %64
         val mask = 1L shl bitOffset
         return (backing[arrIndex] and mask) != 0L
@@ -257,14 +252,15 @@ class MutableBitDeque : BitSequence {
  * 2) Write them into a ByteArray linearly.
  * 3) On decode, we reconstruct a new MutableBitDeque with that data.
  *
- * This is more efficient than storing each bit as a Boolean or trying to store ring-buffer pointers.
+ * This is more efficient than storing each bit as a Boolean or trying to store ring-buffer
+ * pointers.
  */
 object MutableBitDequeSerializer : KSerializer<MutableBitDeque> {
-
-    override val descriptor: SerialDescriptor = buildClassSerialDescriptor("MutableBitDeque") {
-        element<Int>("bitCount")
-        element<ByteArray>("bits")
-    }
+    override val descriptor: SerialDescriptor =
+        buildClassSerialDescriptor("MutableBitDeque") {
+            element<Int>("bitCount")
+            element<ByteArray>("bits")
+        }
 
     override fun serialize(encoder: Encoder, value: MutableBitDeque) {
         val sz = value.bitCount

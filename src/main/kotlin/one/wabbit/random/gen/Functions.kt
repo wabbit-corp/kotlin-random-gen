@@ -6,10 +6,9 @@ import one.wabbit.random.gen.util.Hashing
 fun interface CoGen<A> {
     fun hash(a: A): ULong
 
-    fun <B> contramap(f: (B) -> A): CoGen<B> =
-        CoGen { b -> this.hash(f(b)) }
+    fun <B> contramap(f: (B) -> A): CoGen<B> = CoGen { b -> this.hash(f(b)) }
 
-    fun <B> zip(other: CoGen<B>): CoGen<Pair<A,B>> = CoGen { (x,y) ->
+    fun <B> zip(other: CoGen<B>): CoGen<Pair<A, B>> = CoGen { (x, y) ->
         Hashing.mixCombine(this.hash(x), other.hash(y))
     }
 
@@ -24,22 +23,27 @@ fun interface CoGen<A> {
         private val trueHash = Hashing.mix64(2UL)
         private val falseHash = Hashing.mix64(3UL)
 
-        val unit: CoGen<Unit>    = CoGen { unitHash }
+        val unit: CoGen<Unit> = CoGen { unitHash }
         val bool: CoGen<Boolean> = CoGen { b -> if (b) trueHash else falseHash }
-        val byte: CoGen<Byte>    = CoGen { b -> Hashing.mix64(b.toULong()) }
-        val short: CoGen<Short>  = CoGen { s -> Hashing.mix64(s.toULong()) }
-        val int:  CoGen<Int>     = CoGen { i -> Hashing.mix64(i.toULong()) }
-        val long: CoGen<Long>    = CoGen { l -> Hashing.mix64(l.toULong()) }
-        val char: CoGen<Char>    = CoGen { c -> Hashing.mix64(c.code.toULong()) }
-        val float: CoGen<Float>  = CoGen { f -> Hashing.mix64(f.toRawBits().toULong()) }
+        val byte: CoGen<Byte> = CoGen { b -> Hashing.mix64(b.toULong()) }
+        val short: CoGen<Short> = CoGen { s -> Hashing.mix64(s.toULong()) }
+        val int: CoGen<Int> = CoGen { i -> Hashing.mix64(i.toULong()) }
+        val long: CoGen<Long> = CoGen { l -> Hashing.mix64(l.toULong()) }
+        val char: CoGen<Char> = CoGen { c -> Hashing.mix64(c.code.toULong()) }
+        val float: CoGen<Float> = CoGen { f -> Hashing.mix64(f.toRawBits().toULong()) }
         val double: CoGen<Double> = CoGen { d -> Hashing.mix64(d.toRawBits().toULong()) }
-        val ubyte: CoGen<UByte>  = CoGen { u -> Hashing.mix64(u.toULong()) }
+        val ubyte: CoGen<UByte> = CoGen { u -> Hashing.mix64(u.toULong()) }
         val ushort: CoGen<UShort> = CoGen { u -> Hashing.mix64(u.toULong()) }
-        val uint: CoGen<UInt>    = CoGen { u -> Hashing.mix64(u.toULong()) }
-        val ulong: CoGen<ULong>  = CoGen { u -> Hashing.mix64(u) }
+        val uint: CoGen<UInt> = CoGen { u -> Hashing.mix64(u.toULong()) }
+        val ulong: CoGen<ULong> = CoGen { u -> Hashing.mix64(u) }
 
-        fun <A> fromBuiltinHashCode(): CoGen<A> = CoGen { a -> Hashing.mix64(Hashing.stableHash32(a).toULong()) }
-        fun <A> unsafeFromHashCode(): CoGen<A> = CoGen { a -> Hashing.mix64(a.hashCode().toULong()) }
+        fun <A> fromBuiltinHashCode(): CoGen<A> = CoGen { a ->
+            Hashing.mix64(Hashing.stableHash32(a).toULong())
+        }
+
+        fun <A> unsafeFromHashCode(): CoGen<A> = CoGen { a ->
+            Hashing.mix64(a.hashCode().toULong())
+        }
 
         val string: CoGen<String> = unsafeFromHashCode()
     }
@@ -71,7 +75,6 @@ class TabFun2<A, B, Z>(
     private val coA: CoGen<A>,
     private val coB: CoGen<B>,
 ) : (A, B) -> Z {
-
     override fun invoke(a: A, b: B): Z {
         val n = size
         if (n <= 1) return table(0)
