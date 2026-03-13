@@ -1,6 +1,6 @@
 package one.wabbit.random.gen
 
-import java.util.SplittableRandom
+import one.wabbit.random.L64X128Random
 import one.wabbit.random.gen.util.MutableBitDeque
 
 /**
@@ -25,7 +25,7 @@ class RawTapeReader(val seed: TapeSeed) {
     var read1 = 0L
 
     val leftover = MutableBitDeque()
-    val generator = SplittableRandom(seed.seed)
+    val generator = L64X128Random(seed.seed)
 
     fun read(n: Int): ULong {
         require(n in 0..64) { "Tape.read(n): n must be within [0..64], got $n" }

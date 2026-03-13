@@ -1,6 +1,7 @@
 package one.wabbit.random.gen
 
 import one.wabbit.data.Need
+import kotlin.jvm.JvmName
 import one.wabbit.random.gen.util.Wheel
 
 sealed interface Gen<out A> {
@@ -199,13 +200,11 @@ sealed interface Gen<out A> {
 
         fun string(length: Gen<Int>): Gen<String> =
             listOf(length, validUnicodeCodePoint).map { codePoints ->
-                val sb = StringBuilder()
-                val dst = CharArray(2)
-                for (cp in codePoints) {
-                    val r = Character.toChars(cp, dst, 0)
-                    sb.append(dst, 0, r)
+                buildString {
+                    for (cp in codePoints) {
+                        append(codePointToString(cp))
+                    }
                 }
-                sb.toString()
             }
 
         fun string(range: IntRange): Gen<String> = string(int(range))
@@ -275,6 +274,19 @@ sealed interface Gen<out A> {
 
         private val validUnicodeCodePoint: Gen<Int> =
             oneOfGen(int(0x0000..0xD7FF), int(0xE000..0xFFFF), int(0x10000..0x10FFFF))
+
+        private fun codePointToString(codePoint: Int): String {
+            require(codePoint in 0..0x10FFFF) { "Invalid Unicode code point: $codePoint" }
+            require(codePoint !in 0xD800..0xDFFF) { "Surrogate code point is not valid scalar value: $codePoint" }
+            return if (codePoint <= 0xFFFF) {
+                codePoint.toChar().toString()
+            } else {
+                val value = codePoint - 0x10000
+                val high = ((value shr 10) + 0xD800).toChar()
+                val low = ((value and 0x3FF) + 0xDC00).toChar()
+                charArrayOf(high, low).concatToString()
+            }
+        }
 
         // Other combinators
         fun <T> subset(it: Iterable<T>): Gen<List<T>> {

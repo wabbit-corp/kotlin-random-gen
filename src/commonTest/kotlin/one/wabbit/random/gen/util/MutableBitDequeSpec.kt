@@ -1,7 +1,7 @@
 package one.wabbit.random.gen.util
 
-import java.util.SplittableRandom
 import kotlin.math.min
+import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -9,6 +9,7 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
 import kotlinx.serialization.json.Json
+import one.wabbit.random.L64X128Random
 
 class MutableBitDequeSpec {
     @Test
@@ -36,12 +37,12 @@ class MutableBitDequeSpec {
         assertEquals(15, buf.removeFirst(6, BitOrder.MSB_FIRST))
     }
 
-    private fun randomBoolean(rng: SplittableRandom): Boolean = rng.nextBoolean()
+    private fun randomBoolean(rng: Random): Boolean = rng.nextBoolean()
 
-    private fun randomByte(rng: SplittableRandom): Byte =
+    private fun randomByte(rng: Random): Byte =
         rng.nextInt(Byte.MIN_VALUE.toInt(), Byte.MAX_VALUE.toInt() + 1).toByte()
 
-    private fun randomLong(rng: SplittableRandom): Long = rng.nextLong()
+    private fun randomLong(rng: Random): Long = rng.nextLong()
 
     /** Verify contents of [actual] vs [reference]. */
     private fun assertBitDequeEquals(
@@ -85,7 +86,7 @@ class MutableBitDequeSpec {
     @Test
     fun testRoundTripByte() {
         val trials = 10_000
-        val rng = SplittableRandom(0xDEADBEEF)
+        val rng = L64X128Random(0xDEADBEEF)
         repeat(trials) {
             val b = randomByte(rng)
             val order = if (rng.nextBoolean()) BitOrder.MSB_FIRST else BitOrder.LSB_FIRST
@@ -102,7 +103,7 @@ class MutableBitDequeSpec {
     @Test
     fun testRoundTripLong() {
         val trials = 5_000
-        val rng = SplittableRandom(123456789L)
+        val rng = L64X128Random(123456789L)
         repeat(trials) {
             val v = randomLong(rng)
             val order = if (rng.nextBoolean()) BitOrder.MSB_FIRST else BitOrder.LSB_FIRST
@@ -121,7 +122,7 @@ class MutableBitDequeSpec {
      */
     @Test
     fun testRandomOperationsSequence() {
-        val rng = SplittableRandom(0xCAFEBABE)
+        val rng = L64X128Random(0xCAFEBABE)
         val trials = 2_000
 
         val deque = MutableBitDeque()
@@ -216,7 +217,7 @@ class MutableBitDequeSpec {
     /** Test copy() and structural equality & hashCode in random scenarios. */
     @Test
     fun testCopyEqualsAndHashCode() {
-        val rng = SplittableRandom(987654321)
+        val rng = L64X128Random(987654321)
         val trials = 2_000
         repeat(trials) {
             val deque = MutableBitDeque()

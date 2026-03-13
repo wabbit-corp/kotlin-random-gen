@@ -3,6 +3,7 @@
 package one.wabbit.random.gen.util
 
 import kotlin.math.roundToLong
+import kotlin.jvm.JvmName
 
 data class Wheel<A>(val size: Int, val weights: ULongArray?, val item: (ULong) -> A) {
     init {
@@ -32,9 +33,7 @@ data class Wheel<A>(val size: Int, val weights: ULongArray?, val item: (ULong) -
 
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
-        if (javaClass != other?.javaClass) return false
-
-        other as Wheel<*>
+        if (other !is Wheel<*>) return false
 
         if (!weights.contentEquals(other.weights)) return false
         if (item != other.item) return false
