@@ -5,7 +5,11 @@ import one.wabbit.data.Need
 import one.wabbit.random.L64X128Random
 import one.wabbit.random.gen.RunResult.*
 import one.wabbit.random.gen.util.Codecs
+import one.wabbit.random.gen.util.ExceptionComparisonMode
 import one.wabbit.random.gen.util.MutableBitDeque
+import one.wabbit.random.gen.util.compareExceptions
+import one.wabbit.random.gen.util.defaultExceptionComparisonMode
+import one.wabbit.random.gen.util.isFatalThrowable
 import one.wabbit.random.gen.util.unsafeCast
 
 interface BitSource {
@@ -69,6 +73,12 @@ sealed interface RunResult<out A> {
 }
 
 data class WithTape<out A>(val tape: RawTapeReader, val result: A)
+
+class MinimizedException(val original: Throwable, val tape: RawTapeReader, val value: Any) :
+    Throwable(original.message, original)
+
+class FailedToMinimizeException(val original: Throwable, val tape: RawTapeReader) :
+    Throwable(original.message, original)
 
 fun <A> Gen<A>.sampleR(source: BitSource): RunResult<A> {
     fun readN(n: Int): ULong? {
@@ -225,6 +235,68 @@ fun <A : Any> Gen<A>.foreach(random: Random, count: Int, f: (A) -> Unit) {
         val r = this.sample(random)
         if (r != null) {
             f(r)
+        }
+    }
+}
+
+object Tests {
+    fun <A : Any> foreachMin(
+        gen: Gen<A>,
+        random: Random,
+        iters: Int,
+        minimizerSteps: Int = 10000,
+        exceptionMode: ExceptionComparisonMode = defaultExceptionComparisonMode(),
+        f: (A) -> Unit,
+    ) {
+        gen.foreachMin(
+            random = random,
+            iters = iters,
+            minimizerSteps = minimizerSteps,
+            exceptionMode = exceptionMode,
+            f = f,
+        )
+    }
+}
+
+fun <A : Any> Gen<A>.foreachMin(
+    random: Random,
+    iters: Int,
+    minimizerSteps: Int = 10000,
+    exceptionMode: ExceptionComparisonMode = defaultExceptionComparisonMode(),
+    f: (A) -> Unit,
+) {
+    repeat(iters) {
+        val currentSeed = random.nextLong()
+        val tape = RawTapeReader(TapeSeed(currentSeed, MutableBitDeque()))
+        when (val result = this.sampleR(BitSource.of(tape))) {
+            RunResult.Eof,
+            RunResult.Filtered -> Unit
+            is RunResult.Ok -> {
+                try {
+                    f(result.value)
+                } catch (e0: Throwable) {
+                    if (isFatalThrowable(e0)) throw e0
+
+                    val tape0 = WithTape(tape, result.value)
+                    val p: (A) -> Boolean = {
+                        try {
+                            f(it)
+                            false
+                        } catch (e1: Throwable) {
+                            if (isFatalThrowable(e1)) throw e1
+                            compareExceptions(e0, e1, exceptionMode)
+                        }
+                    }
+
+                    check(p(result.value)) { "Expected exception to be thrown" }
+
+                    val r = this.minimize(tape0, minimizerSteps, random.nextLong(), p)
+                    if (r == null) {
+                        throw FailedToMinimizeException(e0, tape0.tape)
+                    }
+                    throw MinimizedException(e0, r.tape, r.result)
+                }
+            }
         }
     }
 }
