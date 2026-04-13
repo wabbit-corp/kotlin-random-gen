@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 @file:OptIn(ExperimentalUnsignedTypes::class)
 
 package one.wabbit.random.gen.util

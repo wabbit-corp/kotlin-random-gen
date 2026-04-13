@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 package one.wabbit.random.gen
 
 data class RawTapeComplexity(val length: Long, val positive: Long) : Comparable<RawTapeComplexity> {
