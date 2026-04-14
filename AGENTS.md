@@ -10,6 +10,7 @@ Add repo-specific instructions above or below the managed facts block. Keep manu
 - Canonical repo target: `kotlin-random-gen`. Useful entrypoints: `dev project show kotlin-random-gen`, `dev build kotlin-random-gen`, `dev check kotlin-random-gen`.
 - Setup-managed files are regenerated with `dev setup kotlin-random-gen`; avoid hand-editing stamped generated files.
 - Sanctioned override files in this repo: `build.extra.gradle.kts`, `settings.local.gradle.kts`.
+- Review `kotlin-conventions.md` before editing Kotlin code in this repo.
 - Configured project types: `kotlin/kmp`. Docs: `dokka`.
 - Repo reference docs: `CHANGELOG.md`.
 <!-- END app-wabbit-dev managed facts -->
