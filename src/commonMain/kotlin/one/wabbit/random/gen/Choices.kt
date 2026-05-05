@@ -7,9 +7,7 @@ import kotlinx.serialization.Serializable
 /** Bit range consumed by a generation decision. */
 @Serializable data class BitSpan(val startBits: ULong, val lengthBits: ULong)
 
-/**
- * Structured annotations describing how a generator consumed tape bits.
- */
+/** Structured annotations describing how a generator consumed tape bits. */
 sealed interface TapeAnnotation {
     /** Boolean read at bit index [ix]. */
     data class ReadBool(val ix: ULong) : TapeAnnotation
@@ -45,9 +43,7 @@ sealed interface TapeAnnotation {
     data class ListEnd(val id: ULong, val bitIndex: ULong) : TapeAnnotation
 }
 
-/**
- * Tree representation of values recovered from tape annotations.
- */
+/** Tree representation of values recovered from tape annotations. */
 sealed interface TapeData {
     /** Boolean tape value. */
     data class Bool(val value: kotlin.Boolean) : TapeData

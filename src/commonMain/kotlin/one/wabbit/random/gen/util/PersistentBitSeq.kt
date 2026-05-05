@@ -521,9 +521,7 @@ class PersistentBitSeq private constructor(internal val root: Node) : BitSequenc
 
 // ---- Serializer -------------------------------------------------------------
 
-/**
- * Serializer for [PersistentBitSeq] that stores the bit count and dense LSB-first bytes.
- */
+/** Serializer for [PersistentBitSeq] that stores the bit count and dense LSB-first bytes. */
 object ImmBitSeqSerializer : KSerializer<PersistentBitSeq> {
     /** Serialization schema for persistent bit sequences. */
     override val descriptor: SerialDescriptor =

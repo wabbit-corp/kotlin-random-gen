@@ -4,9 +4,7 @@
 
 package one.wabbit.random.gen.util
 
-/**
- * Stable hashing helpers used by generated function values and co-generators.
- */
+/** Stable hashing helpers used by generated function values and co-generators. */
 object Hashing {
     /**
      * Best-effort "stable" 32-bit hash for common JVM types. This defines observational equality
@@ -30,9 +28,7 @@ object Hashing {
         }
     }
 
-    /**
-     * Maps [key] to a bucket in `0 until buckets` using jump consistent hashing.
-     */
+    /** Maps [key] to a bucket in `0 until buckets` using jump consistent hashing. */
     fun jumpConsistentHash(key: ULong, buckets: Int): Int {
         require(buckets > 0) { "buckets must be > 0" }
         var b = -1L

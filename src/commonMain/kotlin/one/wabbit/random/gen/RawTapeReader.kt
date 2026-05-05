@@ -17,8 +17,8 @@ import one.wabbit.random.gen.util.MutableBitDeque
  *   failing input.
  *
  * Normally, you won't need to use [RawTapeReader] directly; use `Gen.sample`, `Gen.foreach`, or
- * `Gen.foreachMin` instead. Direct access is useful when debugging the bit-level representation of a
- * generated value or building custom replay/minimization tooling around [TapeSeed].
+ * `Gen.foreachMin` instead. Direct access is useful when debugging the bit-level representation of
+ * a generated value or building custom replay/minimization tooling around [TapeSeed].
  */
 class RawTapeReader(
     /** Seed and flip sequence used to replay this tape. */

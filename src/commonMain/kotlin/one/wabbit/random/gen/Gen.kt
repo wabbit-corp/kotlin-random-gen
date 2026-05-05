@@ -2,8 +2,8 @@
 
 package one.wabbit.random.gen
 
-import one.wabbit.data.Need
 import kotlin.jvm.JvmName
+import one.wabbit.data.Need
 import one.wabbit.random.gen.util.Wheel
 
 /**
@@ -91,9 +91,7 @@ sealed interface Gen<out A> {
     /** Adds a diagnostic [label] to this generator. */
     fun label(label: String): Gen<A> = Label(label, this)
 
-    /**
-     * Factory functions and common generator combinators.
-     */
+    /** Factory functions and common generator combinators. */
     companion object {
         /** Generator that produces [Unit]. */
         val unit: Gen<Unit> = Done(Unit)
@@ -121,9 +119,7 @@ sealed interface Gen<out A> {
             Gen.const(a)
         }
 
-        /**
-         * Defines a recursive generator by passing a lazily self-referential generator to [f].
-         */
+        /** Defines a recursive generator by passing a lazily self-referential generator to [f]. */
         fun <A> recursive(f: (Gen<A>) -> Gen<A>): Gen<A> {
             class Recursive {
                 lateinit var gen: Gen<A>
@@ -291,8 +287,8 @@ sealed interface Gen<out A> {
         /**
          * Generates a deterministic bucketed function from [A] to [Z].
          *
-         * Inputs are hashed by [a], mapped into a generated table of [buckets], and return values are
-         * drawn from [returning].
+         * Inputs are hashed by [a], mapped into a generated table of [buckets], and return values
+         * are drawn from [returning].
          */
         fun <A, Z> func(
             returning: Gen<Z>,
@@ -307,9 +303,7 @@ sealed interface Gen<out A> {
                 }
                 .label("func")
 
-        /**
-         * Generates a deterministic bucketed two-argument function from `(A, B)` to [Z].
-         */
+        /** Generates a deterministic bucketed two-argument function from `(A, B)` to [Z]. */
         fun <A, B, Z> func2(
             returning: Gen<Z>,
             a: CoGen<A> = CoGen.fromBuiltinHashCode(),
@@ -375,7 +369,9 @@ sealed interface Gen<out A> {
 
         private fun codePointToString(codePoint: Int): String {
             require(codePoint in 0..0x10FFFF) { "Invalid Unicode code point: $codePoint" }
-            require(codePoint !in 0xD800..0xDFFF) { "Surrogate code point is not valid scalar value: $codePoint" }
+            require(codePoint !in 0xD800..0xDFFF) {
+                "Surrogate code point is not valid scalar value: $codePoint"
+            }
             return if (codePoint <= 0xFFFF) {
                 codePoint.toChar().toString()
             } else {
@@ -422,7 +418,9 @@ sealed interface Gen<out A> {
             (ga zip gb).foreach(count = count) { (a, b) -> block(a, b) }
         }
 
-        /** Samples three zipped generators [count] times and runs [block] for successful samples. */
+        /**
+         * Samples three zipped generators [count] times and runs [block] for successful samples.
+         */
         fun <A : Any, B : Any, C : Any> foreach(
             ga: Gen<A>,
             gb: Gen<B>,

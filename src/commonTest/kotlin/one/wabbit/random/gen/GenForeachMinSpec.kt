@@ -2,10 +2,10 @@
 
 package one.wabbit.random.gen
 
-import one.wabbit.random.L64X128Random
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import one.wabbit.random.L64X128Random
 
 class GenForeachMinSpec {
     private val random = L64X128Random(42)
@@ -16,11 +16,7 @@ class GenForeachMinSpec {
         var caught = false
 
         try {
-            genStr.foreachMin(
-                random = random,
-                iters = 5_000,
-                minimizerSteps = 10_000,
-            ) { s ->
+            genStr.foreachMin(random = random, iters = 5_000, minimizerSteps = 10_000) { s ->
                 if (s.contains("abc")) {
                     throw IllegalStateException("We do not like 'abc'")
                 }

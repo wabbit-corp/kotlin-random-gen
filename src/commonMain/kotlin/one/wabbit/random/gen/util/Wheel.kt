@@ -4,8 +4,8 @@
 
 package one.wabbit.random.gen.util
 
-import kotlin.math.roundToLong
 import kotlin.jvm.JvmName
+import kotlin.math.roundToLong
 
 /**
  * Weighted selection table used by `Gen.Choose`.

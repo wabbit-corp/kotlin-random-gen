@@ -25,9 +25,7 @@ data class TapeSeed(
     /** Bit flips applied to the PRNG stream during replay. */
     val flips: BitSequence,
 ) {
-    /**
-     * Encodes this seed and flip sequence as a compact Base58 string.
-     */
+    /** Encodes this seed and flip sequence as a compact Base58 string. */
     fun toBase58String(): String {
         // 1) 8 bytes for seed
         // 2) 4 bytes for bitCount
@@ -49,13 +47,9 @@ data class TapeSeed(
         return Base58.encode(data)
     }
 
-    /**
-     * Base58 decoding helpers for [TapeSeed].
-     */
+    /** Base58 decoding helpers for [TapeSeed]. */
     companion object {
-        /**
-         * Decodes a [TapeSeed] previously produced by [TapeSeed.toBase58String].
-         */
+        /** Decodes a [TapeSeed] previously produced by [TapeSeed.toBase58String]. */
         fun fromBase58String(encoded: String): TapeSeed {
             val data = Base58.decode(encoded)
             require(data.size >= 12) { "Not enough bytes to decode TapeSeed" }

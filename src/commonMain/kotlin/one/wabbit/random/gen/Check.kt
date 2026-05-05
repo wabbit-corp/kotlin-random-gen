@@ -14,9 +14,7 @@ import one.wabbit.random.gen.util.defaultExceptionComparisonMode
 import one.wabbit.random.gen.util.isFatalThrowable
 import one.wabbit.random.gen.util.unsafeCast
 
-/**
- * Source of deterministic bits used by generator interpretation.
- */
+/** Source of deterministic bits used by generator interpretation. */
 interface BitSource {
     /** Reads [bits] bits and advances the source position. */
     fun next(bits: Int): ULong
@@ -77,9 +75,7 @@ interface BitSource {
     }
 }
 
-/**
- * Result of interpreting a [Gen] against a [BitSource].
- */
+/** Result of interpreting a [Gen] against a [BitSource]. */
 sealed interface RunResult<out A> {
     /** Successful generated value. */
     data class Ok<out A>(val value: A) : RunResult<A>
@@ -91,9 +87,7 @@ sealed interface RunResult<out A> {
     data object Filtered : RunResult<Nothing>
 }
 
-/**
- * Generated result paired with the replay tape that produced it.
- */
+/** Generated result paired with the replay tape that produced it. */
 data class WithTape<out A>(
     /** Replay tape that produced [result]. */
     val tape: RawTapeReader,
@@ -101,9 +95,7 @@ data class WithTape<out A>(
     val result: A,
 )
 
-/**
- * Exception thrown after property minimization succeeds.
- */
+/** Exception thrown after property minimization succeeds. */
 class MinimizedException(
     /** Original exception thrown by the property body before minimization. */
     val original: Throwable,
@@ -111,19 +103,15 @@ class MinimizedException(
     val tape: RawTapeReader,
     /** Minimized failing value. */
     val value: Any,
-) :
-    Throwable(original.message, original)
+) : Throwable(original.message, original)
 
-/**
- * Exception thrown when a failing value cannot be reproduced during minimization.
- */
+/** Exception thrown when a failing value cannot be reproduced during minimization. */
 class FailedToMinimizeException(
     /** Original exception thrown by the property body. */
     val original: Throwable,
     /** Replay tape for the unreduced failing value. */
     val tape: RawTapeReader,
-) :
-    Throwable(original.message, original)
+) : Throwable(original.message, original)
 
 /**
  * Interprets this generator using [source].
@@ -163,7 +151,8 @@ fun <A> Gen<A>.sampleR(source: BitSource): RunResult<A> {
                 }
                 is Gen.Choose<*> -> {
                     val w = current.options
-                    val n = Codecs.readUint(0U..(w.total - 1UL).toUInt(), rdr) ?: return RunResult.Eof
+                    val n =
+                        Codecs.readUint(0U..(w.total - 1UL).toUInt(), rdr) ?: return RunResult.Eof
                     current = w.draw(n.toULong())
                     continue
                 }
@@ -214,10 +203,13 @@ fun <A> Gen<A>.sampleR(source: BitSource): RunResult<A> {
                     when (current) {
                         is Gen.Done -> current.value
                         is Gen.ChooseBool -> Codecs.readBool(rdr) ?: return RunResult.Eof
-                        is Gen.ChooseInt -> Codecs.readInt(current.range, rdr) ?: return RunResult.Eof
-                        is Gen.ChooseUInt -> Codecs.readUint(current.range, rdr) ?: return RunResult.Eof
+                        is Gen.ChooseInt ->
+                            Codecs.readInt(current.range, rdr) ?: return RunResult.Eof
+                        is Gen.ChooseUInt ->
+                            Codecs.readUint(current.range, rdr) ?: return RunResult.Eof
                         is Gen.ChooseBits -> rdr.read(current.width) ?: return RunResult.Eof
-                        is Gen.ChooseDouble -> Codecs.readDoubleU01(current.bits, rdr) ?: return RunResult.Eof
+                        is Gen.ChooseDouble ->
+                            Codecs.readDoubleU01(current.bits, rdr) ?: return RunResult.Eof
                         else -> error("unreachable")
                     }
                 }
@@ -237,9 +229,7 @@ fun <A> Gen<A>.sampleR(source: BitSource): RunResult<A> {
     }
 }
 
-/**
- * Small interpreter data type used by lower-level bit-reading experiments.
- */
+/** Small interpreter data type used by lower-level bit-reading experiments. */
 sealed interface Run<out A> {
     /** Completed interpreter value. */
     data class Done<out A>(val value: A) : Run<A>
@@ -285,7 +275,9 @@ fun <A : Any> Gen<A>.sampleUnbounded(random: Random): A {
     }
 }
 
-/** Samples this generator up to [count] times with a fresh random seed and runs [f] for successes. */
+/**
+ * Samples this generator up to [count] times with a fresh random seed and runs [f] for successes.
+ */
 fun <A : Any> Gen<A>.foreach(count: Int = 100, f: (A) -> Unit) {
     val random = L64X128Random(Random.Default.nextLong())
     repeat(count) {
@@ -306,9 +298,7 @@ fun <A : Any> Gen<A>.foreach(random: Random, count: Int, f: (A) -> Unit) {
     }
 }
 
-/**
- * Namespace for property-style test runners.
- */
+/** Namespace for property-style test runners. */
 object Tests {
     /** Runs [gen] and throws [MinimizedException] if a failing sample can be minimized. */
     fun <A : Any> foreachMin(
@@ -329,9 +319,7 @@ object Tests {
     }
 }
 
-/**
- * Runs this generator repeatedly and minimizes the first non-fatal exception thrown by [f].
- */
+/** Runs this generator repeatedly and minimizes the first non-fatal exception thrown by [f]. */
 fun <A : Any> Gen<A>.foreachMin(
     random: Random,
     iters: Int,

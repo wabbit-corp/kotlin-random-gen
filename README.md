@@ -1,5 +1,12 @@
 # kotlin-random-gen
 
+![](./.meta/github-project-banner.png)
+
+<p align=center>
+    <img src="https://img.shields.io/maven-central/v/one.wabbit/kotlin-random-gen" alt="Maven Central">
+    <img src="https://img.shields.io/badge/Kotlin-Multiplatform-7F52FF" alt="Kotlin Multiplatform">
+</p>
+
 `kotlin-random-gen` is a Kotlin Multiplatform property-based data generation library built on
 `kotlin-random`.
 
@@ -7,7 +14,7 @@ It provides a declarative `Gen<T>` DSL, deterministic tape replay, simple shrink
 failing values, generated function values through `CoGen`, and low-level bit utilities used by the
 replay engine.
 
-## Installation
+## 🚀 Installation
 
 ```kotlin
 repositories {
@@ -19,7 +26,7 @@ dependencies {
 }
 ```
 
-## Quick Start
+## 🚀 Usage
 
 ```kotlin
 import one.wabbit.random.gen.Gen

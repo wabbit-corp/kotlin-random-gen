@@ -12,9 +12,7 @@ import kotlinx.serialization.encoding.CompositeDecoder
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
 
-/**
- * Bit order used when packing or unpacking multi-bit values.
- */
+/** Bit order used when packing or unpacking multi-bit values. */
 enum class BitOrder {
     /** Most-significant bit first. */
     MSB_FIRST,
@@ -22,9 +20,7 @@ enum class BitOrder {
     LSB_FIRST,
 }
 
-/**
- * Readable sequence of bits indexed from zero.
- */
+/** Readable sequence of bits indexed from zero. */
 interface BitSequence {
     /** Number of bits in the sequence. */
     val size: Long

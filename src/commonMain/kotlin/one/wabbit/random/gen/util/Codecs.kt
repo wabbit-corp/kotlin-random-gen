@@ -6,9 +6,7 @@ import kotlin.math.floor
 import kotlin.math.max
 import kotlin.math.min
 
-/**
- * Bit-level codecs used by generator sampling and tape replay.
- */
+/** Bit-level codecs used by generator sampling and tape replay. */
 object Codecs {
     /** Reader for MSB-first bit fields. */
     fun interface ReadBits {
