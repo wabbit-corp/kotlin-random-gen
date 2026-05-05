@@ -20,24 +20,27 @@ import kotlinx.serialization.encoding.Encoder
  * Immutable, persistent bit sequence backed by ULongArray leaves. Internally a rope of chunks
  * (balanced binary tree).
  *
- * Key ops are O(log n) with very small constant factors for ≤64-bit edits.
+ * Key ops are O(log n) with very small constant factors for 64-bit-or-smaller edits.
  */
 @Serializable(with = ImmBitSeqSerializer::class)
 class PersistentBitSeq private constructor(internal val root: Node) : BitSequence {
     // ---- Public API ---------------------------------------------------------
 
+    /** Number of bits in this sequence. */
     val length: Long
         get() = size
 
+    /** Number of bits in this sequence. */
     override val size: Long
         get() = root.size
 
+    /** Returns the bit at [index]. */
     override operator fun get(index: Long): Boolean {
         require(index in 0 until size) { "Index $index out of [0,$size)" }
         return root.getBit(index)
     }
 
-    // BitSequence interop
+    /** Copies this immutable sequence into a mutable deque. */
     override fun toMutableBitDeque(): MutableBitDeque {
         val out = MutableBitDeque()
         if (size == 0L) return out
@@ -116,7 +119,7 @@ class PersistentBitSeq private constructor(internal val root: Node) : BitSequenc
     fun cut(start: Long, endExclusive: Long): PersistentBitSeq =
         replace(start, endExclusive, empty())
 
-    // --- Replace / Flip (≤64 bits window) ------------------------------------
+    // --- Replace / Flip (64-bit-or-smaller window) ----------------------------
 
     /**
      * Flip bits in window [offset, offset + windowBits), masked by [mask]. windowBits must be in
@@ -475,6 +478,7 @@ class PersistentBitSeq private constructor(internal val root: Node) : BitSequenc
         internal const val MERGE_BITS_THRESHOLD = 4096 // merge small neighbor leaves to limit depth
         internal const val MAX_BITS_PER_LEAF_TO_PACK = 1024 // pack small unaligned leaves
 
+        /** Returns an empty persistent bit sequence. */
         fun empty(): PersistentBitSeq = PersistentBitSeq(Empty)
 
         /**
@@ -517,13 +521,18 @@ class PersistentBitSeq private constructor(internal val root: Node) : BitSequenc
 
 // ---- Serializer -------------------------------------------------------------
 
+/**
+ * Serializer for [PersistentBitSeq] that stores the bit count and dense LSB-first bytes.
+ */
 object ImmBitSeqSerializer : KSerializer<PersistentBitSeq> {
+    /** Serialization schema for persistent bit sequences. */
     override val descriptor: SerialDescriptor =
         buildClassSerialDescriptor("ImmBitSeq") {
             element<Long>("bitCount")
             element<ByteArray>("bits") // densely packed, LSB-first per byte
         }
 
+    /** Encodes [value] as a bit count plus densely packed bytes. */
     override fun serialize(encoder: Encoder, value: PersistentBitSeq) {
         val sz = value.size
         val byteCount = ((sz + 7) / 8).toInt()
@@ -553,6 +562,7 @@ object ImmBitSeqSerializer : KSerializer<PersistentBitSeq> {
         comp.endStructure(descriptor)
     }
 
+    /** Decodes a bit sequence written by [serialize]. */
     override fun deserialize(decoder: Decoder): PersistentBitSeq {
         val comp = decoder.beginStructure(descriptor)
         var bitCount = 0L

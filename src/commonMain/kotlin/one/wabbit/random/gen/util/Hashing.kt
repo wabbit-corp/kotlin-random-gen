@@ -4,6 +4,9 @@
 
 package one.wabbit.random.gen.util
 
+/**
+ * Stable hashing helpers used by generated function values and co-generators.
+ */
 object Hashing {
     /**
      * Best-effort "stable" 32-bit hash for common JVM types. This defines observational equality
@@ -27,6 +30,9 @@ object Hashing {
         }
     }
 
+    /**
+     * Maps [key] to a bucket in `0 until buckets` using jump consistent hashing.
+     */
     fun jumpConsistentHash(key: ULong, buckets: Int): Int {
         require(buckets > 0) { "buckets must be > 0" }
         var b = -1L
@@ -51,14 +57,18 @@ object Hashing {
         return z
     }
 
+    /** Rotates [value] left by [bits] modulo 64. */
     fun rotateLeft(value: ULong, bits: Int): ULong {
         val n = bits and 63
         return (value shl n) or (value shr (64 - n))
     }
 
+    /** Combines two stable 64-bit hashes. */
     fun mixCombine(h1: ULong, h2: ULong): ULong = mix64(h1 xor h2.rotateLeft(1))
 
+    /** Combines three stable 64-bit hashes. */
     fun mixCombine(h1: ULong, h2: ULong, h3: ULong): ULong = mixCombine(mixCombine(h1, h2), h3)
 
+    /** Combines a variable number of stable 64-bit hashes. */
     fun mixCombine(vararg hs: ULong): ULong = hs.fold(0UL) { acc, h -> mixCombine(acc, h) }
 }

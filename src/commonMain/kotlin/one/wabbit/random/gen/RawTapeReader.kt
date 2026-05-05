@@ -16,19 +16,31 @@ import one.wabbit.random.gen.util.MutableBitDeque
  * - If a test fails, we can try toggling bits early in the tape to see if that produces a "smaller"
  *   failing input.
  *
- * Normally, you won't need to use [RawTapeReader] directly—just call higher-level functions like
- * [Gen.checkAll], [Gen.foreach], or [Gen.sample]. However, if you need custom manipulations or want
- * to debug the bit-level representation of generated values, you can delve into [RawTapeReader],
- * [TapeSeed], and the related classes.
+ * Normally, you won't need to use [RawTapeReader] directly; use `Gen.sample`, `Gen.foreach`, or
+ * `Gen.foreachMin` instead. Direct access is useful when debugging the bit-level representation of a
+ * generated value or building custom replay/minimization tooling around [TapeSeed].
  */
-class RawTapeReader(val seed: TapeSeed) {
+class RawTapeReader(
+    /** Seed and flip sequence used to replay this tape. */
+    val seed: TapeSeed
+) {
+    /** Total number of bits read. */
     var read = 0L
+    /** Number of zero bits read after applying flips. */
     var read0 = 0L
+    /** Number of one bits read after applying flips. */
     var read1 = 0L
 
+    /** Buffered PRNG bits not yet consumed by [read]. */
     val leftover = MutableBitDeque()
+    /** Underlying deterministic PRNG initialized from [seed]. */
     val generator = L64X128Random(seed.seed)
 
+    /**
+     * Reads [n] bits from the replay tape.
+     *
+     * Bits are returned MSB-first in the low [n] bits of the returned value.
+     */
     fun read(n: Int): ULong {
         require(n in 0..64) { "Tape.read(n): n must be within [0..64], got $n" }
 

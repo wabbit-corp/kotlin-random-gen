@@ -2,6 +2,9 @@
 
 package one.wabbit.random.gen.util
 
+/**
+ * Controls how exception-driven minimization decides that two thrown exceptions are equivalent.
+ */
 enum class ExceptionComparisonMode {
     /** Check that exception classes match only. */
     SAME_CLASS,
@@ -19,9 +22,15 @@ enum class ExceptionComparisonMode {
     SAME_CLASS_MESSAGE_FULL_STACK,
 }
 
+/**
+ * Portable stack-frame summary used by exception comparison.
+ */
 data class ExceptionFrame(
+    /** Declaring class name, when the platform exposes it. */
     val className: String?,
+    /** Method or function name, when the platform exposes it. */
     val methodName: String?,
+    /** Source line number, when the platform exposes it. */
     val lineNumber: Int?,
 )
 
@@ -31,6 +40,9 @@ internal expect fun isFatalThrowable(e: Throwable): Boolean
 
 internal expect fun platformDefaultExceptionComparisonMode(): ExceptionComparisonMode
 
+/**
+ * Returns the platform default exception comparison mode.
+ */
 fun defaultExceptionComparisonMode(): ExceptionComparisonMode = platformDefaultExceptionComparisonMode()
 
 /**

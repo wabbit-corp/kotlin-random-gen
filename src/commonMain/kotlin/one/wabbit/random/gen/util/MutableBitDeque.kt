@@ -12,16 +12,27 @@ import kotlinx.serialization.encoding.CompositeDecoder
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
 
+/**
+ * Bit order used when packing or unpacking multi-bit values.
+ */
 enum class BitOrder {
+    /** Most-significant bit first. */
     MSB_FIRST,
+    /** Least-significant bit first. */
     LSB_FIRST,
 }
 
+/**
+ * Readable sequence of bits indexed from zero.
+ */
 interface BitSequence {
+    /** Number of bits in the sequence. */
     val size: Long
 
+    /** Returns the bit at [index]. */
     operator fun get(index: Long): Boolean
 
+    /** Copies this sequence into a mutable bit deque. */
     fun toMutableBitDeque(): MutableBitDeque
 }
 
@@ -42,21 +53,25 @@ class MutableBitDeque : BitSequence {
     override val size: Long
         get() = bitCount.toLong()
 
+    /** Compatibility alias for [size]. */
     val length: Long
         get() = size
 
+    /** Returns the bit at [index]. */
     override operator fun get(index: Long): Boolean {
         require(index >= 0 && index < size) { "Index $index out of bounds for size $size" }
         val globalIndex = (startBitIndex + index.toInt()) % capacityInBits
         return getBitAt(globalIndex)
     }
 
+    /** Sets the bit at [index] to [value]. */
     operator fun set(index: Long, value: Boolean) {
         require(index >= 0 && index < size) { "Index $index out of bounds for size $size" }
         val globalIndex = (startBitIndex + index.toInt()) % capacityInBits
         setBitAt(globalIndex, value)
     }
 
+    /** Appends [value] at the end of the deque. */
     fun add(value: Boolean) {
         ensureSpaceFor(1)
         setBitAt(endBitIndex, value)
@@ -64,6 +79,7 @@ class MutableBitDeque : BitSequence {
         bitCount++
     }
 
+    /** Extends with false bits as needed, then sets [index] to [value]. */
     fun fillAndSet(index: Long, value: Boolean) {
         require(index >= 0) { "Index cannot be negative: $index" }
         if (index < size) {
@@ -77,6 +93,7 @@ class MutableBitDeque : BitSequence {
         add(value)
     }
 
+    /** Appends all eight bits of [value] in [order]. */
     fun addAll(value: Byte, order: BitOrder = BitOrder.MSB_FIRST) {
         ensureSpaceFor(8)
         for (i in 0 until 8) {
@@ -89,6 +106,7 @@ class MutableBitDeque : BitSequence {
         }
     }
 
+    /** Appends all 64 bits of [value] in [order]. */
     fun addAll(value: Long, order: BitOrder = BitOrder.MSB_FIRST) {
         ensureSpaceFor(64)
         for (i in 0 until 64) {
@@ -101,6 +119,7 @@ class MutableBitDeque : BitSequence {
         }
     }
 
+    /** Removes and returns the first bit. */
     fun removeFirst(): Boolean {
         check(bitCount > 0) { "Cannot remove from empty deque" }
         val bit = getBitAt(startBitIndex)
@@ -109,6 +128,7 @@ class MutableBitDeque : BitSequence {
         return bit
     }
 
+    /** Removes [n] bits and packs them into a `Long` using [order]. */
     fun removeFirst(n: Int, order: BitOrder = BitOrder.MSB_FIRST): Long {
         require(n in 0..64) { "removeFirst(n): n must be within [0..64], got $n" }
         check(bitCount >= n) { "Not enough bits to remove. size=$size, requested=$n" }
@@ -129,6 +149,7 @@ class MutableBitDeque : BitSequence {
         return value
     }
 
+    /** Prepends [v] at the front of the deque. */
     fun addFirst(v: Boolean) {
         ensureSpaceFor(1)
         startBitIndex = (startBitIndex - 1 + capacityInBits) % capacityInBits
@@ -136,6 +157,7 @@ class MutableBitDeque : BitSequence {
         bitCount++
     }
 
+    /** Removes and returns the last bit. */
     fun removeLast(): Boolean {
         check(bitCount > 0) { "Cannot remove from empty deque" }
         endBitIndex = (endBitIndex - 1 + capacityInBits) % capacityInBits
@@ -144,17 +166,20 @@ class MutableBitDeque : BitSequence {
         return bit
     }
 
+    /** Returns the first bit without removing it. */
     fun peekFirst(): Boolean {
         check(bitCount > 0) { "Cannot peek from empty deque" }
         return get(0)
     }
 
+    /** Returns the last bit without removing it. */
     fun peekLast(): Boolean {
         check(bitCount > 0) { "Cannot peek from empty deque" }
         val idx = (endBitIndex - 1 + capacityInBits) % capacityInBits
         return getBitAt(idx)
     }
 
+    /** Returns a mutable copy with the same bit contents. */
     fun copy(): MutableBitDeque {
         val result = MutableBitDeque()
         val sz = bitCount
@@ -169,8 +194,10 @@ class MutableBitDeque : BitSequence {
         return result
     }
 
+    /** Returns a mutable copy of this deque. */
     override fun toMutableBitDeque(): MutableBitDeque = copy()
 
+    /** Returns a content hash based on the current bit sequence. */
     override fun hashCode(): Int {
         var h = 1
         val sz = bitCount
@@ -181,6 +208,7 @@ class MutableBitDeque : BitSequence {
         return h
     }
 
+    /** Compares bit contents with another [MutableBitDeque]. */
     override fun equals(other: Any?): Boolean {
         if (other !is MutableBitDeque) return false
         if (this.size != other.size) return false
@@ -191,6 +219,7 @@ class MutableBitDeque : BitSequence {
         return true
     }
 
+    /** Returns a debugging representation containing the deque bits. */
     override fun toString(): String {
         val sb = StringBuilder()
         sb.append("MutableBitDeque(\"")
@@ -258,12 +287,14 @@ class MutableBitDeque : BitSequence {
  * pointers.
  */
 object MutableBitDequeSerializer : KSerializer<MutableBitDeque> {
+    /** Serialization schema for mutable bit deques. */
     override val descriptor: SerialDescriptor =
         buildClassSerialDescriptor("MutableBitDeque") {
             element<Int>("bitCount")
             element<ByteArray>("bits")
         }
 
+    /** Encodes [value] as a bit count plus densely packed bytes. */
     override fun serialize(encoder: Encoder, value: MutableBitDeque) {
         val sz = value.bitCount
         val byteCount = (sz + 7) / 8
@@ -286,6 +317,7 @@ object MutableBitDequeSerializer : KSerializer<MutableBitDeque> {
         composite.endStructure(descriptor)
     }
 
+    /** Decodes a deque written by [serialize]. */
     override fun deserialize(decoder: Decoder): MutableBitDeque {
         val comp = decoder.beginStructure(descriptor)
         var bitCount = 0

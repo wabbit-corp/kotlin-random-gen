@@ -6,22 +6,29 @@ import kotlin.math.floor
 import kotlin.math.max
 import kotlin.math.min
 
+/**
+ * Bit-level codecs used by generator sampling and tape replay.
+ */
 object Codecs {
+    /** Reader for MSB-first bit fields. */
     fun interface ReadBits {
         /** Read [n] bits (0..64), MSB-first, return them in the low bits of ULong. */
         fun read(n: Int): ULong?
     }
 
+    /** Writer for MSB-first bit fields. */
     fun interface WriteBits {
         /** Write [n] bits (0..64), MSB-first, from the low bits of [value]. */
         fun write(value: ULong, n: Int)
     }
 
+    /** Reads one bit as a Boolean, or null when the source is exhausted. */
     fun readBool(bits: ReadBits): Boolean? {
         val bit = bits.read(1) ?: return null
         return bit == 1uL
     }
 
+    /** Writes [value] as one bit. */
     fun writeBool(value: Boolean, bits: WriteBits) {
         bits.write(if (value) 1uL else 0uL, 1)
     }
@@ -30,6 +37,7 @@ object Codecs {
     // Unsigned int (Truncated Binary Encoding)
     // --------------------------
 
+    /** Reads a `UInt` in [range] using truncated binary encoding. */
     fun readUintTBE(range: UIntRange, bits: ReadBits): UInt? {
         val first = range.first
         val last = range.last
@@ -81,9 +89,11 @@ object Codecs {
         }
     }
 
+    /** Reads a `UInt` in [range]. */
     fun readUint(range: UIntRange, bits: ReadBits): UInt? =
         readULong(range.first.toULong()..range.last.toULong(), bits)?.toUInt()
 
+    /** Writes [value] in [range]. */
     fun writeUint(value: UInt, range: UIntRange, bits: WriteBits) =
         writeULong(value.toULong(), range.first.toULong()..range.last.toULong(), bits)
 
@@ -93,6 +103,7 @@ object Codecs {
         return 64 - (x - 1UL).countLeadingZeroBits()
     }
 
+    /** Reads a `ULong` in [range], returning null when the bit source is exhausted. */
     fun readULong(range: ULongRange, bits: ReadBits): ULong? {
         val first = range.first
         val last = range.last
@@ -181,6 +192,7 @@ object Codecs {
         }
     }
 
+    /** Reads an `Int` in [range], returning null when the bit source is exhausted. */
     fun readInt(range: IntRange, read: ReadBits): Int? {
         val first = range.first
         val last = range.last
@@ -215,6 +227,7 @@ object Codecs {
         writeUint(d, 0u..(m - 1u), bits)
     }
 
+    /** Reads a `Double` in `[0.0, 1.0)` using [bits] precision bits. */
     fun readDoubleU01(bits: Int, read: ReadBits): Double? {
         val bits = min(max(bits, 1), 53) // clamp to [1..53]
         val v = read.read(bits)
@@ -230,11 +243,13 @@ object Codecs {
         write.write(clamped.toULong(), bitsClamped)
     }
 
+    /** Reads [length] bytes, returning null when the bit source is exhausted. */
     fun readBytes(length: Int, read: ReadBits): ByteArray? {
         require(length >= 0)
         return ByteArray(length) { read.read(8)?.toLong()?.toByte() ?: return null }
     }
 
+    /** Writes all bytes in [value]. */
     fun writeBytes(value: ByteArray, write: WriteBits) {
         for (b in value) {
             write.write((b.toInt() and 0xFF).toULong(), 8)

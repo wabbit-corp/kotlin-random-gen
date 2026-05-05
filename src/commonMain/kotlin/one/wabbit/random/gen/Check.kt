@@ -14,18 +14,28 @@ import one.wabbit.random.gen.util.defaultExceptionComparisonMode
 import one.wabbit.random.gen.util.isFatalThrowable
 import one.wabbit.random.gen.util.unsafeCast
 
+/**
+ * Source of deterministic bits used by generator interpretation.
+ */
 interface BitSource {
+    /** Reads [bits] bits and advances the source position. */
     fun next(bits: Int): ULong
 
+    /** Returns the number of bits still available, or [Long.MAX_VALUE] for unbounded sources. */
     fun available(): Long
 
+    /** Current bit position. */
     val pos: ULong
 
+    /** Returns the next annotation identifier for annotated runs. */
     fun nextAnnotationId(): ULong
 
+    /** Records a tape annotation. Current built-in sources ignore annotations. */
     fun annotate(anno: TapeAnnotation): Unit
 
+    /** Constructors for bit sources backed by random streams or replay tapes. */
     companion object {
+        /** Creates an unbounded bit source backed by [random]. */
         fun of(random: Random): BitSource =
             object : BitSource {
                 override var pos: ULong = 0UL
@@ -51,6 +61,7 @@ interface BitSource {
                 override fun annotate(anno: TapeAnnotation) {}
             }
 
+        /** Creates a bit source backed by [tape], optionally limited to [limit] consumed bits. */
         fun of(tape: RawTapeReader, limit: Long = Long.MAX_VALUE): BitSource =
             object : BitSource {
                 override var pos: ULong = tape.read.toULong()
@@ -66,22 +77,60 @@ interface BitSource {
     }
 }
 
+/**
+ * Result of interpreting a [Gen] against a [BitSource].
+ */
 sealed interface RunResult<out A> {
+    /** Successful generated value. */
     data class Ok<out A>(val value: A) : RunResult<A>
 
+    /** The bit source did not contain enough bits to complete generation. */
     data object Eof : RunResult<Nothing>
 
+    /** The generator rejected the current sample. */
     data object Filtered : RunResult<Nothing>
 }
 
-data class WithTape<out A>(val tape: RawTapeReader, val result: A)
+/**
+ * Generated result paired with the replay tape that produced it.
+ */
+data class WithTape<out A>(
+    /** Replay tape that produced [result]. */
+    val tape: RawTapeReader,
+    /** Generated value produced by [tape]. */
+    val result: A,
+)
 
-class MinimizedException(val original: Throwable, val tape: RawTapeReader, val value: Any) :
+/**
+ * Exception thrown after property minimization succeeds.
+ */
+class MinimizedException(
+    /** Original exception thrown by the property body before minimization. */
+    val original: Throwable,
+    /** Replay tape for the minimized failing value. */
+    val tape: RawTapeReader,
+    /** Minimized failing value. */
+    val value: Any,
+) :
     Throwable(original.message, original)
 
-class FailedToMinimizeException(val original: Throwable, val tape: RawTapeReader) :
+/**
+ * Exception thrown when a failing value cannot be reproduced during minimization.
+ */
+class FailedToMinimizeException(
+    /** Original exception thrown by the property body. */
+    val original: Throwable,
+    /** Replay tape for the unreduced failing value. */
+    val tape: RawTapeReader,
+) :
     Throwable(original.message, original)
 
+/**
+ * Interprets this generator using [source].
+ *
+ * @return [RunResult.Ok] for a generated value, [RunResult.Filtered] for rejected samples, or
+ *   [RunResult.Eof] when [source] runs out of bits.
+ */
 fun <A> Gen<A>.sampleR(source: BitSource): RunResult<A> {
     fun readN(n: Int): ULong? {
         require(n in 0..64)
@@ -188,26 +237,39 @@ fun <A> Gen<A>.sampleR(source: BitSource): RunResult<A> {
     }
 }
 
+/**
+ * Small interpreter data type used by lower-level bit-reading experiments.
+ */
 sealed interface Run<out A> {
+    /** Completed interpreter value. */
     data class Done<out A>(val value: A) : Run<A>
 
+    /** Sequenced interpreter step. */
     data class FlatMap<A, out B>(val fa: Run<A>, val f: (A) -> Run<B>) : Run<B>
 
+    /** Delayed interpreter step. */
     data class Delay<out A>(val thunk: Need<Run<A>>) : Run<A>
 
+    /** Bit-read interpreter step. */
     data class ReadN<out B>(val n: Int, val cont: (ULong) -> Run<B>) : Run<B>
 
+    /** Sequences this run with [f]. */
     fun <Z> flatMap(f: (A) -> Run<Z>): Run<Z> = FlatMap(this, f)
 
+    /** Maps the completed value of this run. */
     fun <Z> map(f: (A) -> Z): Run<Z> = flatMap { Done(f(it)) }
 
+    /** Constructors for [Run] values. */
     companion object {
+        /** Creates a completed run. */
         fun <A> now(value: A): Run<A> = Done(value)
 
+        /** Creates a delayed run. */
         fun <A> delay(thunk: Need<Run<A>>): Run<A> = Delay(thunk)
     }
 }
 
+/** Samples this generator once from [random], returning null for filtered or incomplete samples. */
 fun <A : Any> Gen<A>.sample(random: Random): A? =
     when (val r = sampleR(BitSource.of(random))) {
         is RunResult.Ok -> r.value
@@ -215,6 +277,7 @@ fun <A : Any> Gen<A>.sample(random: Random): A? =
         is RunResult.Filtered -> null
     }
 
+/** Samples this generator until a value is produced. */
 fun <A : Any> Gen<A>.sampleUnbounded(random: Random): A {
     while (true) {
         val r = sample(random)
@@ -222,6 +285,7 @@ fun <A : Any> Gen<A>.sampleUnbounded(random: Random): A {
     }
 }
 
+/** Samples this generator up to [count] times with a fresh random seed and runs [f] for successes. */
 fun <A : Any> Gen<A>.foreach(count: Int = 100, f: (A) -> Unit) {
     val random = L64X128Random(Random.Default.nextLong())
     repeat(count) {
@@ -232,6 +296,7 @@ fun <A : Any> Gen<A>.foreach(count: Int = 100, f: (A) -> Unit) {
     }
 }
 
+/** Samples this generator up to [count] times using [random] and runs [f] for successes. */
 fun <A : Any> Gen<A>.foreach(random: Random, count: Int, f: (A) -> Unit) {
     repeat(count) {
         val r = this.sample(random)
@@ -241,7 +306,11 @@ fun <A : Any> Gen<A>.foreach(random: Random, count: Int, f: (A) -> Unit) {
     }
 }
 
+/**
+ * Namespace for property-style test runners.
+ */
 object Tests {
+    /** Runs [gen] and throws [MinimizedException] if a failing sample can be minimized. */
     fun <A : Any> foreachMin(
         gen: Gen<A>,
         random: Random,
@@ -260,6 +329,9 @@ object Tests {
     }
 }
 
+/**
+ * Runs this generator repeatedly and minimizes the first non-fatal exception thrown by [f].
+ */
 fun <A : Any> Gen<A>.foreachMin(
     random: Random,
     iters: Int,
@@ -303,6 +375,7 @@ fun <A : Any> Gen<A>.foreachMin(
     }
 }
 
+/** Searches for a generated value satisfying [p]. */
 fun <A : Any> Gen<A>.satisfy(iters: Int, seed: Long, p: (A) -> Boolean): WithTape<A>? {
     val rng = L64X128Random(seed)
 
@@ -323,6 +396,7 @@ fun <A : Any> Gen<A>.satisfy(iters: Int, seed: Long, p: (A) -> Boolean): WithTap
     return null
 }
 
+/** Attempts to minimize a known failing generated value [v]. */
 fun <A : Any> Gen<A>.minimize(
     v: WithTape<A>,
     iters: Int,
