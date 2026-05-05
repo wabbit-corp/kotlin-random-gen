@@ -1,0 +1,8 @@
+# Repo-local check suppressions for generated assets, platform-identical trees, and false-positive tokens.
+check:ignore E_DUPLICATE_DIRECTORY_TREE src/androidMain/kotlin
+check:ignore E_DUPLICATE_FILE .banner.png
+check:ignore E_KMP_AMBIGUOUS_NATIVE_NAME .
+check:ignore E_KMP_REDUNDANT_TARGET_ALIAS .
+check:ignore E_STALE_TODO src/commonMain/kotlin/one/wabbit/random/gen/util/Codecs.kt
+check:ignore E_STALE_TODO src/commonTest/kotlin/one/wabbit/random/gen/util/CodecsTests.kt
+check:ignore E_STALE_TODO src/commonTest/kotlin/one/wabbit/random/gen/GenSpec.kt
